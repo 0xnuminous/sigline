@@ -127,17 +127,21 @@ Optional build-time defaults:
 Image uploads
 ~~~~~~~~~~~~~
 
-The frontend can attach one optional image to a post. It never embeds provider
-API secrets in the browser.
+The frontend can attach one optional image to a post. Sigline does not host
+image bytes. The app stores only the image URI and SHA-256 hash on-chain; the
+actual image must live on storage the user controls or explicitly chooses.
+
+The browser never embeds provider API secrets.
 
 Two upload modes are supported:
 
 - ``local-ipfs`` posts directly to a local Kubo/IPFS API, defaulting to
   ``http://127.0.0.1:5001``. The local node must allow browser CORS for the
   app origin.
-- ``endpoint`` posts the image to a trusted upload proxy. The proxy can pin to
-  IPFS, upload to Arweave/Irys, or use another decentralized storage provider,
-  then return JSON:
+- ``endpoint`` posts the image to a bring-your-own upload proxy. That proxy is
+  not a Sigline service; run it yourself or point it at a provider you choose.
+  It can pin to IPFS, upload to Arweave/Irys, or use another decentralized
+  storage provider, then return JSON:
 
 .. code-block:: json
 

@@ -921,14 +921,14 @@ export default function App() {
                     }
                   >
                     <option value="local-ipfs">local IPFS</option>
-                    <option value="endpoint">upload endpoint</option>
+                    <option value="endpoint">BYO endpoint</option>
                   </Select>
                   <Input
                     value={imageUploadEndpoint}
                     placeholder={
                       imageUploadMode === "local-ipfs"
                         ? "http://127.0.0.1:5001"
-                        : "https://your-upload-proxy.example/upload"
+                        : "https://your-byo-upload-proxy.example/upload"
                     }
                     onChange={(event) =>
                       setImageUploadEndpoint(event.target.value)
