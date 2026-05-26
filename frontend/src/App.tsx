@@ -1,4 +1,4 @@
-// Base command-deck: composition layer for BaseTwtxt.
+// Base command-deck: composition layer for Sigline.
 // Owns wallet/contract state; delegates visuals to the design-system primitives.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -422,11 +422,11 @@ export default function App() {
 
       {/* ------------------------------- TOP BAR ------------------------------ */}
       <header className="topbar" role="banner">
-        <a className="brand" href="#deck" aria-label="BaseTwtxt deck">
+        <a className="brand" href="#deck" aria-label="Sigline deck">
           <Terminal size={14} aria-hidden="true" />
           <span className="brand__name">BASE</span>
           <span className="brand__dot">·</span>
-          <span className="brand__sub">TWTXT</span>
+          <span className="brand__sub">SIGLINE</span>
           <span className="brand__rev">v0.1</span>
         </a>
 
@@ -714,7 +714,7 @@ export default function App() {
 
             <Field
               label="contract address"
-              hint="The BaseTwtxt registry contract on this network"
+              hint="The Sigline registry contract on this network"
               error={
                 contractAddress && !contractReady
                   ? "That doesn't look like a valid address"
@@ -1046,7 +1046,7 @@ export default function App() {
         </span>
         <span className="statusbar__spacer" />
         <span className="statusbar__cell statusbar__cell--ghost">
-          BaseTwtxt — small, signed, public.
+          Sigline — small, signed, public.
         </span>
       </footer>
     </div>

@@ -1,15 +1,17 @@
-twtxt
-~~~~~
-|pypi| |build| |coverage| |docs| |license|
+Sigline
+~~~~~~~
+|license|
 
-**twtxt** is a decentralised, minimalist microblogging service for hackers.
+**Sigline** is a small public feed signed on Base.
 
-So you want to get some thoughts out on the internet in a convenient and slick way while also following the gibberish of others? Instead of signing up at a closed and/or regulated microblogging platform, getting your status updates out with twtxt is as easy as putting them in a publicly accessible text file. The URL pointing to this file is your identity, your account. twtxt then tracks these text files, like a feedreader, and builds your unique timeline out of them, depending on which files you track. The format is simple, human readable, and integrates well with UNIX command line utilities.
+Sigline started as a fork of ``buckket/twtxt`` and keeps the flat-file client
+available, but the primary path is now wallet-signed posting to an append-only
+Base smart contract event log. The contract stores post events and small profile
+records only; your wallet signs each write.
 
 
-|demo|
-
-**tl;dr**: twtxt is a CLI tool, as well as a format specification for self-hosted flat file based microblogging.
+**tl;dr**: Sigline is a Base-native microfeed with a CLI, smart contract, and
+wallet-based web frontend.
 
 Features
 --------
@@ -17,19 +19,21 @@ Features
 - A beautiful command-line interface thanks to click.
 - Asynchronous HTTP requests thanks to asyncio/aiohttp and Python 3.
 - Integrates well with existing tools (scp, cut, echo, date, etc.) and your shell.
-- Optional Base-chain publishing and timeline reads via an append-only smart contract event log.
+- Base-chain publishing and timeline reads via an append-only smart contract event log.
+- Wallet-based Vite/React frontend for posting, profile publishing, and feed reads.
+- Legacy twtxt flat-file workflows are still available through the Python CLI.
 - Don’t like the official client? Tweet using ``echo -e "`date +%FT%T%:z`\tHello world!" >> twtxt.txt``!
 
 Documentation
 -------------
 
-Check out the full documentation at: http://twtxt.readthedocs.org/en/latest/
+Start with ``docs/user/base_chain.rst`` for the Base workflow.
 
 Frontend
 --------
 
-The Base-chain port includes a Vite/React frontend for wallet-based posting,
-profile publishing, and event timeline reads:
+Sigline includes a Vite/React frontend for wallet-based posting, profile
+publishing, and event timeline reads:
 
 .. code-block:: console
 
@@ -70,31 +74,11 @@ Contributions
 License
 -------
 
-twtxt is released under the MIT License. See the bundled LICENSE file for details.
+Sigline is released under the MIT License. See the bundled LICENSE file for details.
 
-
-.. |pypi| image:: https://img.shields.io/pypi/v/twtxt.svg?style=flat&label=version
-    :target: https://pypi.python.org/pypi/twtxt
-    :alt: Latest version released on PyPi
-
-.. |build| image:: https://github.com/buckket/twtxt/actions/workflows/python.yml/badge.svg
-    :target: https://github.com/buckket/twtxt/actions/workflows/python.yml
-    :alt: Build status of the master branch
-
-.. |coverage| image:: https://img.shields.io/coveralls/buckket/twtxt/master.svg?style=flat
-    :target: https://coveralls.io/r/buckket/twtxt?branch=master
-    :alt: Test coverage
 
 .. |license| image:: https://img.shields.io/badge/license-MIT-blue.svg?style=flat
-    :target: https://raw.githubusercontent.com/buckket/twtxt/master/LICENSE
+    :target: https://raw.githubusercontent.com/0xnuminous/sigline/master/LICENSE
     :alt: Package license
-
-.. |demo| image:: https://asciinema.org/a/1w2q3suhgrzh2hgltddvk9ot4.png
-    :target: https://asciinema.org/a/1w2q3suhgrzh2hgltddvk9ot4
-    :alt: Demo
-
-.. |docs| image:: https://readthedocs.org/projects/twtxt/badge/?version=latest
-    :target: http://twtxt.readthedocs.org/en/latest/?badge=latest
-    :alt: Documentation Status
 
 .. _irc.libera.chat: https://libera.chat/

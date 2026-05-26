@@ -30,19 +30,25 @@ def test_normalize_base_address():
 
 def test_resolve_rpc_url_prefers_explicit_and_env(monkeypatch):
     monkeypatch.delenv("TWTXT_BASE_RPC_URL", raising=False)
+    monkeypatch.delenv("SIGLINE_BASE_RPC_URL", raising=False)
     assert resolve_rpc_url("base-sepolia") == "https://sepolia.base.org"
     assert resolve_rpc_url("base-sepolia", "https://rpc.example") == "https://rpc.example"
 
-    monkeypatch.setenv("TWTXT_BASE_RPC_URL", "https://env-rpc.example")
+    monkeypatch.setenv("SIGLINE_BASE_RPC_URL", "https://env-rpc.example")
+    assert resolve_rpc_url("base-sepolia") == os.environ["SIGLINE_BASE_RPC_URL"]
+
+    monkeypatch.delenv("SIGLINE_BASE_RPC_URL")
+    monkeypatch.setenv("TWTXT_BASE_RPC_URL", "https://legacy-rpc.example")
     assert resolve_rpc_url("base-sepolia") == os.environ["TWTXT_BASE_RPC_URL"]
 
 
 def test_account_from_env_rejects_missing_or_invalid_key(monkeypatch):
     monkeypatch.delenv("TWTXT_BASE_PRIVATE_KEY", raising=False)
+    monkeypatch.delenv("SIGLINE_BASE_PRIVATE_KEY", raising=False)
     with pytest.raises(BaseConfigurationError):
         account_from_env()
 
-    monkeypatch.setenv("TWTXT_BASE_PRIVATE_KEY", "not-a-key")
+    monkeypatch.setenv("SIGLINE_BASE_PRIVATE_KEY", "not-a-key")
     with pytest.raises(BaseConfigurationError):
         account_from_env()
 
@@ -93,7 +99,7 @@ class FakeWeb3:
         return 1
 
 
-class FakeTweetPosted:
+class FakePostPosted:
     def __init__(self, logs_by_range=None, error=None):
         self.logs_by_range = logs_by_range or {}
         self.error = error
@@ -108,7 +114,7 @@ class FakeTweetPosted:
 
 class FakeContract:
     def __init__(self, tweet_posted=None, functions=None):
-        self.events = SimpleNamespace(TweetPosted=tweet_posted)
+        self.events = SimpleNamespace(PostPosted=tweet_posted)
         self.functions = functions
 
 
@@ -120,7 +126,7 @@ def _patch_base_contract(monkeypatch, w3, contract):
 def test_get_base_tweets_pages_log_reads_from_latest_chunk_first(monkeypatch):
     address = "0x0000000000000000000000000000000000000001"
     source = Source("alice", to_base_url(address))
-    tweet_posted = FakeTweetPosted(
+    tweet_posted = FakePostPosted(
         {
             (16, 25): [{"args": {"createdAt": 25, "text": "newest"}}],
             (0, 5): [{"args": {"createdAt": 5, "text": "oldest"}}],
@@ -148,11 +154,11 @@ def test_get_base_tweets_pages_log_reads_from_latest_chunk_first(monkeypatch):
 def test_get_base_tweets_wraps_rpc_errors(monkeypatch):
     address = "0x0000000000000000000000000000000000000001"
     source = Source("alice", to_base_url(address))
-    tweet_posted = FakeTweetPosted(error=Web3Exception("block range too large"))
+    tweet_posted = FakePostPosted(error=Web3Exception("block range too large"))
     w3 = FakeWeb3(block_number=25)
     _patch_base_contract(monkeypatch, w3, FakeContract(tweet_posted=tweet_posted))
 
-    with pytest.raises(BaseChainError, match="Failed to fetch tweets from Base"):
+    with pytest.raises(BaseChainError, match="Failed to fetch posts from Base"):
         get_base_tweets([source], contract_address=address, chunk_size=10)
 
 
@@ -178,7 +184,7 @@ def test_get_profile_wraps_web3_errors(monkeypatch):
     address = "0x0000000000000000000000000000000000000001"
     w3 = FakeWeb3()
     contract = FakeContract(
-        tweet_posted=FakeTweetPosted(),
+        tweet_posted=FakePostPosted(),
         functions=FakeProfileFunctions(error=Web3Exception("no code at address")),
     )
     _patch_base_contract(monkeypatch, w3, contract)

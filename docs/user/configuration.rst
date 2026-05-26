@@ -102,7 +102,7 @@ Base-chain accounts can be followed with a ``base://`` URL. Standard ``twtxt tim
 +-------------+-------+--------------+---------------------------------------------------+
 | rpc_url     | TEXT  |              | JSON-RPC endpoint; use a provider for production  |
 +-------------+-------+--------------+---------------------------------------------------+
-| contract    | TEXT  |              | deployed ``BaseTwtxt`` contract address           |
+| contract    | TEXT  |              | deployed ``Sigline`` contract address             |
 +-------------+-------+--------------+---------------------------------------------------+
 | from_block  | INT   | 0            | first block scanned for Base-chain events         |
 +-------------+-------+--------------+---------------------------------------------------+

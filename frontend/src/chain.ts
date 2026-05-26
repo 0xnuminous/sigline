@@ -64,18 +64,21 @@ export const ABI = [
   "function setProfile(string nick, string twtUrl)",
   "function profile(address account) view returns (tuple(string nick, string twtUrl, uint64 updatedAt))",
   "function postCount(address account) view returns (uint256)",
-  "event TweetPosted(address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text)",
+  "event PostPosted(address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text)",
   "event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt)",
 ];
 
 export const DEFAULT_NETWORK = (import.meta.env.VITE_BASE_NETWORK === "base"
   ? "base"
   : "base-sepolia") as NetworkKey;
-export const DEFAULT_CONTRACT = import.meta.env.VITE_BASE_TWTXT_CONTRACT ?? "";
+export const DEFAULT_CONTRACT =
+  import.meta.env.VITE_SIGLINE_CONTRACT ??
+  import.meta.env.VITE_BASE_TWTXT_CONTRACT ??
+  "";
 export const DEFAULT_RPC =
   import.meta.env.VITE_BASE_RPC_URL ?? NETWORKS[DEFAULT_NETWORK].rpcUrl;
 export const DEFAULT_FROM_BLOCK = import.meta.env.VITE_BASE_FROM_BLOCK ?? "0";
-export const STORAGE_KEY = "basetwtxt.frontend.v1";
+export const STORAGE_KEY = "sigline.frontend.v1";
 
 export const samplePosts: TimelineItem[] = [
   {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BaseTwtxt} from "../contracts/BaseTwtxt.sol";
+import {Sigline} from "../contracts/Sigline.sol";
 
 interface Vm {
     function expectEmit(bool checkTopic1, bool checkTopic2, bool checkTopic3, bool checkData, address emitter) external;
@@ -11,39 +11,39 @@ interface Vm {
     function expectRevert(bytes calldata revertData) external;
 }
 
-contract BaseTwtxtActor {
-    function post(BaseTwtxt registry, string calldata text) external returns (uint256, bytes32) {
+contract SiglineActor {
+    function post(Sigline registry, string calldata text) external returns (uint256, bytes32) {
         return registry.post(text);
     }
 
-    function setProfile(BaseTwtxt registry, string calldata nick, string calldata twtUrl) external {
+    function setProfile(Sigline registry, string calldata nick, string calldata twtUrl) external {
         registry.setProfile(nick, twtUrl);
     }
 
-    function pause(BaseTwtxt registry) external {
+    function pause(Sigline registry) external {
         registry.pause();
     }
 
-    function acceptOwnership(BaseTwtxt registry) external {
+    function acceptOwnership(Sigline registry) external {
         registry.acceptOwnership();
     }
 }
 
-contract BaseTwtxtTest {
+contract SiglineTest {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    BaseTwtxt private registry;
-    BaseTwtxtActor private actor;
+    Sigline private registry;
+    SiglineActor private actor;
 
-    event TweetPosted(
+    event PostPosted(
         address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text
     );
     event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt);
     event ProfileCleared(address indexed account);
 
     function setUp() public {
-        registry = new BaseTwtxt(address(this));
-        actor = new BaseTwtxtActor();
+        registry = new Sigline(address(this));
+        actor = new SiglineActor();
     }
 
     function testPostIncrementsOnlyCaller() public {
@@ -53,7 +53,7 @@ contract BaseTwtxtTest {
             keccak256(abi.encode(block.chainid, address(registry), address(this), uint256(0), createdAt, text));
 
         vm.expectEmit(true, true, true, true, address(registry));
-        emit TweetPosted(address(this), 0, createdAt, expectedHash, text);
+        emit PostPosted(address(this), 0, createdAt, expectedHash, text);
 
         (uint256 firstIndex, bytes32 firstHash) = registry.post(text);
         assert(firstIndex == 0);
@@ -66,19 +66,19 @@ contract BaseTwtxtTest {
         assert(registry.postCount(address(this)) == 1);
     }
 
-    function testRejectsEmptyTweet() public {
-        vm.expectRevert(BaseTwtxt.EmptyTweet.selector);
+    function testRejectsEmptyPost() public {
+        vm.expectRevert(Sigline.EmptyPost.selector);
         registry.post("");
     }
 
-    function testRejectsTooLongTweet() public {
-        bytes memory text = new bytes(registry.MAX_TWEET_BYTES() + 1);
+    function testRejectsTooLongPost() public {
+        bytes memory text = new bytes(registry.MAX_POST_BYTES() + 1);
         for (uint256 i = 0; i < text.length; i++) {
             text[i] = "x";
         }
 
         vm.expectRevert(
-            abi.encodeWithSelector(BaseTwtxt.TweetTooLong.selector, text.length, registry.MAX_TWEET_BYTES())
+            abi.encodeWithSelector(Sigline.PostTooLong.selector, text.length, registry.MAX_POST_BYTES())
         );
         registry.post(string(text));
     }
@@ -88,19 +88,19 @@ contract BaseTwtxtTest {
         emit ProfileUpdated(address(this), "alice", "https://example.org/alice.txt", uint64(block.timestamp));
 
         registry.setProfile("alice", "https://example.org/alice.txt");
-        BaseTwtxt.Profile memory profile = registry.profile(address(this));
+        Sigline.Profile memory profile = registry.profile(address(this));
         assert(_same(profile.nick, "alice"));
         assert(_same(profile.twtUrl, "https://example.org/alice.txt"));
         assert(profile.updatedAt > 0);
 
         actor.setProfile(registry, "bob", "https://example.org/bob.txt");
-        BaseTwtxt.Profile memory actorProfile = registry.profile(address(actor));
+        Sigline.Profile memory actorProfile = registry.profile(address(actor));
         assert(_same(actorProfile.nick, "bob"));
         assert(_same(actorProfile.twtUrl, "https://example.org/bob.txt"));
     }
 
     function testRejectsInvalidProfile() public {
-        vm.expectRevert(BaseTwtxt.EmptyNick.selector);
+        vm.expectRevert(Sigline.EmptyNick.selector);
         registry.setProfile("", "https://example.org/alice.txt");
 
         bytes memory nick = new bytes(registry.MAX_NICK_BYTES() + 1);
@@ -108,7 +108,7 @@ contract BaseTwtxtTest {
             nick[i] = "x";
         }
 
-        vm.expectRevert(abi.encodeWithSelector(BaseTwtxt.NickTooLong.selector, nick.length, registry.MAX_NICK_BYTES()));
+        vm.expectRevert(abi.encodeWithSelector(Sigline.NickTooLong.selector, nick.length, registry.MAX_NICK_BYTES()));
         registry.setProfile(string(nick), "");
     }
 
@@ -118,7 +118,7 @@ contract BaseTwtxtTest {
             url[i] = "x";
         }
 
-        vm.expectRevert(abi.encodeWithSelector(BaseTwtxt.UrlTooLong.selector, url.length, registry.MAX_URL_BYTES()));
+        vm.expectRevert(abi.encodeWithSelector(Sigline.UrlTooLong.selector, url.length, registry.MAX_URL_BYTES()));
         registry.setProfile("alice", string(url));
     }
 
@@ -130,7 +130,7 @@ contract BaseTwtxtTest {
 
         registry.clearProfile();
 
-        BaseTwtxt.Profile memory profile = registry.profile(address(this));
+        Sigline.Profile memory profile = registry.profile(address(this));
         assert(_same(profile.nick, ""));
         assert(_same(profile.twtUrl, ""));
         assert(profile.updatedAt == 0);
@@ -169,7 +169,7 @@ contract BaseTwtxtTest {
     }
 
     function testOwnerCannotRenounceOwnership() public {
-        vm.expectRevert(BaseTwtxt.OwnershipRenounceDisabled.selector);
+        vm.expectRevert(Sigline.OwnershipRenounceDisabled.selector);
         registry.renounceOwnership();
         assert(registry.owner() == address(this));
     }

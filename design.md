@@ -1,6 +1,6 @@
-# BaseTwtxt Design System
+# Sigline Design System
 
-> A reference for humans and language models extending the BaseTwtxt frontend.
+> A reference for humans and language models extending the Sigline frontend.
 > Read this **before** adding screens, components, copy, or styles. The system
 > is opinionated; following it is what keeps the product coherent.
 
@@ -34,7 +34,7 @@ If you are an LLM editing this codebase:
 
 ## 1. Identity
 
-BaseTwtxt is a **command-deck for Base**: a small public microblog where each
+Sigline is a **command-deck for Base**: a small public microblog where each
 post is an event on a Base smart contract. The interface should feel like a
 tactical operator's console — dense, technical, legible, sovereign — but built
 to a real product bar (not hacker cosplay).
@@ -254,7 +254,7 @@ Variants:
 ```tsx
 <Field
   label="contract address"
-  hint="The BaseTwtxt registry contract on this network"
+  hint="The Sigline registry contract on this network"
   error={contractAddress && !valid ? "That doesn't look like a valid address" : undefined}
   optional
 >
@@ -446,7 +446,7 @@ This is the section where models go wrong most often. **Read it twice.**
 | tx.sealed 0x… · block N | Confirmed in block N (0x…). |
 | identity tx broadcast | Submitted. Waiting for confirmation… |
 | chain.switch → base.sepolia | Switched network to base.sepolia. |
-| flat-file spirit · public proof · base command layer | BaseTwtxt — small, signed, public, no custody. |
+| flat-file spirit · public proof · base command layer | Sigline — small, signed, public, no custody. |
 
 ### 8.4 What technical jargon is OK
 
@@ -565,7 +565,7 @@ frontend/
 - Anything that touches `BrowserProvider`, `JsonRpcProvider`, `Contract`, or
   EIP-1193 → `chain.ts`.
 - Anything that has a stable visual shape and is reused → `components.tsx`.
-- One-off layout + state for the BaseTwtxt screens → `App.tsx`.
+- One-off layout + state for the Sigline screens → `App.tsx`.
 - Tokens, primitives, layout → `styles.css`. No CSS-in-JS, no inline styles
   that duplicate a token.
 

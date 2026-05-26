@@ -19,7 +19,8 @@ import click
 
 from twtxt.cache import Cache
 from twtxt.basechain import BaseChainError, BaseConfigurationError
-from twtxt.basechain import DEFAULT_NETWORK, NETWORKS, PRIVATE_KEY_ENV
+from twtxt.basechain import CONTRACT_ENV, DEFAULT_NETWORK, LEGACY_CONTRACT_ENV, LEGACY_RPC_URL_ENV
+from twtxt.basechain import NETWORKS, PRIVATE_KEY_ENV, RPC_URL_ENV
 from twtxt.basechain import get_base_tweets, get_profile, is_base_address, is_base_url, normalize_address
 from twtxt.basechain import publish_tweet, set_profile, to_base_url
 from twtxt.config import Config
@@ -483,11 +484,11 @@ def unfollow(ctx, nick):
               type=click.Choice(sorted(NETWORKS.keys())),
               help="Base network to use. (Default: base-sepolia)")
 @click.option("--rpc-url",
-              envvar="TWTXT_BASE_RPC_URL",
+              envvar=[RPC_URL_ENV, LEGACY_RPC_URL_ENV],
               help="Base JSON-RPC endpoint. Overrides [base] rpc_url.")
 @click.option("--contract",
-              envvar="TWTXT_BASE_CONTRACT",
-              help="BaseTwtxt contract address. Overrides [base] contract.")
+              envvar=[CONTRACT_ENV, LEGACY_CONTRACT_ENV],
+              help="Sigline contract address. Overrides [base] contract.")
 @click.option("--private-key-env",
               default=PRIVATE_KEY_ENV,
               show_default=True,
@@ -501,7 +502,7 @@ def unfollow(ctx, nick):
 @click.argument("text", callback=validate_text, nargs=-1)
 @click.pass_context
 def base_tweet(ctx, network, rpc_url, contract, private_key_env, timeout, yes, text):
-    """Publish a tweet as a Base-chain event."""
+    """Publish a post as a Sigline event."""
     conf = ctx.obj["conf"]
     options = _base_options(conf, network, rpc_url, contract)
     _confirm_mainnet(options["network"], yes)
@@ -527,11 +528,11 @@ def base_tweet(ctx, network, rpc_url, contract, private_key_env, timeout, yes, t
               type=click.Choice(sorted(NETWORKS.keys())),
               help="Base network to use. (Default: base-sepolia)")
 @click.option("--rpc-url",
-              envvar="TWTXT_BASE_RPC_URL",
+              envvar=[RPC_URL_ENV, LEGACY_RPC_URL_ENV],
               help="Base JSON-RPC endpoint. Overrides [base] rpc_url.")
 @click.option("--contract",
-              envvar="TWTXT_BASE_CONTRACT",
-              help="BaseTwtxt contract address. Overrides [base] contract.")
+              envvar=[CONTRACT_ENV, LEGACY_CONTRACT_ENV],
+              help="Sigline contract address. Overrides [base] contract.")
 @click.option("--private-key-env",
               default=PRIVATE_KEY_ENV,
               show_default=True,
@@ -587,11 +588,11 @@ def base_profile(ctx, network, rpc_url, contract, private_key_env, timeout, yes,
               type=click.Choice(sorted(NETWORKS.keys())),
               help="Base network to use. (Default: base-sepolia)")
 @click.option("--rpc-url",
-              envvar="TWTXT_BASE_RPC_URL",
+              envvar=[RPC_URL_ENV, LEGACY_RPC_URL_ENV],
               help="Base JSON-RPC endpoint. Overrides [base] rpc_url.")
 @click.option("--contract",
-              envvar="TWTXT_BASE_CONTRACT",
-              help="BaseTwtxt contract address. Overrides [base] contract.")
+              envvar=[CONTRACT_ENV, LEGACY_CONTRACT_ENV],
+              help="Sigline contract address. Overrides [base] contract.")
 @click.option("--from-block",
               type=click.INT,
               help="First block to scan. Defaults to [base] from_block.")
@@ -599,7 +600,7 @@ def base_profile(ctx, network, rpc_url, contract, private_key_env, timeout, yes,
 @click.pass_context
 def base_timeline(ctx, pager, limit, sorting, timeout, porcelain, network, rpc_url,
                   contract, from_block, sources):
-    """Retrieve a timeline from Base-chain twtxt events."""
+    """Retrieve a timeline from Sigline events."""
     conf = ctx.obj["conf"]
     options = _base_options(conf, network, rpc_url, contract)
 

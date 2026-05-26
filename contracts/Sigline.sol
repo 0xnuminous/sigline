@@ -5,11 +5,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
-/// @title BaseTwtxt
-/// @notice Append-only twtxt feed events for Base and Base Sepolia.
+/// @title Sigline
+/// @notice Append-only Sigline feed events for Base and Base Sepolia.
 /// @dev The contract does not custody native tokens or ERC-20 tokens.
-contract BaseTwtxt is Ownable2Step, Pausable {
-    uint256 public constant MAX_TWEET_BYTES = 560;
+contract Sigline is Ownable2Step, Pausable {
+    uint256 public constant MAX_POST_BYTES = 560;
     uint256 public constant MAX_NICK_BYTES = 64;
     uint256 public constant MAX_URL_BYTES = 512;
 
@@ -22,14 +22,14 @@ contract BaseTwtxt is Ownable2Step, Pausable {
     mapping(address account => uint256 count) private _postCounts;
     mapping(address account => Profile profile) private _profiles;
 
-    event TweetPosted(
+    event PostPosted(
         address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text
     );
     event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt);
     event ProfileCleared(address indexed account);
 
-    error EmptyTweet();
-    error TweetTooLong(uint256 length, uint256 maxLength);
+    error EmptyPost();
+    error PostTooLong(uint256 length, uint256 maxLength);
     error EmptyNick();
     error NickTooLong(uint256 length, uint256 maxLength);
     error UrlTooLong(uint256 length, uint256 maxLength);
@@ -41,10 +41,10 @@ contract BaseTwtxt is Ownable2Step, Pausable {
     function post(string calldata text) external whenNotPaused returns (uint256 index, bytes32 contentHash) {
         uint256 textLength = bytes(text).length;
         if (textLength == 0) {
-            revert EmptyTweet();
+            revert EmptyPost();
         }
-        if (textLength > MAX_TWEET_BYTES) {
-            revert TweetTooLong(textLength, MAX_TWEET_BYTES);
+        if (textLength > MAX_POST_BYTES) {
+            revert PostTooLong(textLength, MAX_POST_BYTES);
         }
 
         index = _postCounts[msg.sender];
@@ -55,7 +55,7 @@ contract BaseTwtxt is Ownable2Step, Pausable {
         uint64 createdAt = _timestamp();
         contentHash = keccak256(abi.encode(block.chainid, address(this), msg.sender, index, createdAt, text));
 
-        emit TweetPosted(msg.sender, index, createdAt, contentHash, text);
+        emit PostPosted(msg.sender, index, createdAt, contentHash, text);
     }
 
     function setProfile(string calldata nick, string calldata twtUrl) external whenNotPaused {

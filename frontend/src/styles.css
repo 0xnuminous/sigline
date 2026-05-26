@@ -1,5 +1,5 @@
 /* =============================================================================
- * BaseTwtxt · Base command-deck design system
+ * Sigline · Base command-deck design system
  *
  * Layering:
  *   1. tokens         — color, type, spacing, motion
@@ -1156,7 +1156,7 @@ body::after {
 }
 .cmd::before {
     /* faint NFO frame on the top-left */
-    content: "▍ BASETWTXT ░ RECEIVE";
+    content: "▍ SIGLINE ░ RECEIVE";
     position: absolute;
     top: 8px;
     left: 14px;

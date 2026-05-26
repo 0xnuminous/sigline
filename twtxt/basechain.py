@@ -19,9 +19,12 @@ from web3.exceptions import Web3Exception
 from twtxt.models import Tweet
 
 
-PRIVATE_KEY_ENV = "TWTXT_BASE_PRIVATE_KEY"
-RPC_URL_ENV = "TWTXT_BASE_RPC_URL"
-CONTRACT_ENV = "TWTXT_BASE_CONTRACT"
+PRIVATE_KEY_ENV = "SIGLINE_BASE_PRIVATE_KEY"
+RPC_URL_ENV = "SIGLINE_BASE_RPC_URL"
+CONTRACT_ENV = "SIGLINE_BASE_CONTRACT"
+LEGACY_PRIVATE_KEY_ENV = "TWTXT_BASE_PRIVATE_KEY"
+LEGACY_RPC_URL_ENV = "TWTXT_BASE_RPC_URL"
+LEGACY_CONTRACT_ENV = "TWTXT_BASE_CONTRACT"
 DEFAULT_NETWORK = "base-sepolia"
 BASE_URL_PREFIX = "base://"
 DEFAULT_LOG_CHUNK_SIZE = 10000
@@ -68,7 +71,7 @@ NETWORKS = {
 }
 
 
-BASE_TWTXT_ABI = [
+SIGLINE_ABI = [
     {
         "type": "function",
         "name": "post",
@@ -115,7 +118,7 @@ BASE_TWTXT_ABI = [
     },
     {
         "type": "event",
-        "name": "TweetPosted",
+        "name": "PostPosted",
         "anonymous": False,
         "inputs": [
             {"indexed": True, "name": "author", "type": "address"},
@@ -178,14 +181,14 @@ def network_config(network):
 def resolve_rpc_url(network, rpc_url=None):
     if rpc_url:
         return rpc_url
-    env_rpc_url = os.environ.get(RPC_URL_ENV)
+    env_rpc_url = os.environ.get(RPC_URL_ENV) or os.environ.get(LEGACY_RPC_URL_ENV)
     if env_rpc_url:
         return env_rpc_url
     return network_config(network).rpc_url
 
 
 def resolve_contract_address(contract_address=None):
-    contract_address = contract_address or os.environ.get(CONTRACT_ENV)
+    contract_address = contract_address or os.environ.get(CONTRACT_ENV) or os.environ.get(LEGACY_CONTRACT_ENV)
     if not contract_address:
         raise BaseConfigurationError(
             "Base contract address is required. Set [base] contract or {0}.".format(CONTRACT_ENV)
@@ -222,7 +225,7 @@ def connect(network=DEFAULT_NETWORK, rpc_url=None, timeout=5.0):
 
 
 def contract_for(w3, contract_address):
-    return w3.eth.contract(address=normalize_address(contract_address), abi=BASE_TWTXT_ABI)
+    return w3.eth.contract(address=normalize_address(contract_address), abi=SIGLINE_ABI)
 
 
 def get_profile(account, contract_address, network=DEFAULT_NETWORK, rpc_url=None, timeout=5.0):
@@ -288,6 +291,8 @@ def set_profile(nick, twturl, contract_address, network=DEFAULT_NETWORK, rpc_url
 
 def account_from_env(env_name=PRIVATE_KEY_ENV):
     private_key = os.environ.get(env_name)
+    if not private_key and env_name == PRIVATE_KEY_ENV:
+        private_key = os.environ.get(LEGACY_PRIVATE_KEY_ENV)
     if not private_key:
         raise BaseConfigurationError(
             "Private key env var {0} is not set. The key is only read from the environment.".format(env_name)
@@ -362,13 +367,13 @@ def _get_tweet_logs(w3, contract, address, from_block=0, to_block="latest",
 
 def _fetch_tweet_logs(contract, from_block, to_block, argument_filters):
     try:
-        return contract.events.TweetPosted.get_logs(
+        return contract.events.PostPosted.get_logs(
             from_block=from_block,
             to_block=to_block,
             argument_filters=argument_filters,
         )
     except (Web3Exception, ValueError) as e:
-        raise BaseChainError("Failed to fetch tweets from Base: {0}".format(e)) from e
+        raise BaseChainError("Failed to fetch posts from Base: {0}".format(e)) from e
 
 
 def _resolve_to_block(w3, to_block):
