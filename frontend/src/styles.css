@@ -1628,6 +1628,12 @@ body::after {
     gap: var(--s-4);
     padding: var(--s-4) 0;
     border-bottom: 1px dotted rgba(126, 168, 224, 0.1);
+    scroll-margin-top: 84px;
+}
+.feed-row:target {
+    outline: 1px solid rgba(46, 230, 255, 0.6);
+    outline-offset: 8px;
+    background: rgba(46, 230, 255, 0.035);
 }
 .feed-row:last-child {
     border-bottom: 0;
@@ -1703,6 +1709,17 @@ body::after {
 .feed-row__crc {
     color: var(--cyan);
 }
+.feed-row__link {
+    color: var(--cyan);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-bottom: 1px dashed var(--line);
+}
+.feed-row__link:hover {
+    color: var(--text-hot);
+    border-color: var(--cyan);
+}
 .feed-row__track {
     border: 1px solid var(--line);
     background: transparent;
@@ -1723,6 +1740,54 @@ body::after {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+/* answers ------------------------------------------------------------------- */
+
+.answering {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    padding: 8px 10px;
+    border: 1px solid rgba(46, 230, 255, 0.32);
+    background: rgba(46, 230, 255, 0.06);
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.answering__label {
+    color: var(--cyan);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-right: 8px;
+}
+
+.answering a {
+    color: var(--text-hot);
+    border-bottom: 1px dashed var(--line-strong);
+}
+
+.answering__author {
+    margin-left: 8px;
+    color: var(--text-faint);
+}
+
+.answering button {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    padding: 3px 7px;
+    text-transform: uppercase;
+}
+
+.answering button:hover {
+    border-color: var(--cyan);
+    color: var(--text-hot);
 }
 
 /* empty state --------------------------------------------------------------- */
@@ -1910,6 +1975,13 @@ body::after {
     .sigcard-row__track {
         grid-column: 1 / -1;
         justify-self: stretch;
+    }
+    .answering {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .answering button {
+        width: 100%;
     }
 
     .receive__bar {

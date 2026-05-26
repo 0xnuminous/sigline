@@ -133,6 +133,7 @@ export default function App() {
   const [sigcards, setSigcards] = useState<Record<string, Sigcard>>({});
   const [isLoadingSigcards, setIsLoadingSigcards] = useState(false);
   const [sigcardRefresh, setSigcardRefresh] = useState(0);
+  const [answeringTo, setAnsweringTo] = useState<TimelineItem | null>(null);
   const [hasQueriedTimeline, setHasQueriedTimeline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
@@ -458,6 +459,25 @@ export default function App() {
     [appendLog],
   );
 
+  const answerLine = useCallback(
+    (item: TimelineItem) => {
+      const prefix = `re:${item.contentHash.slice(2, 10)} `;
+      setAnsweringTo(item);
+      setPostText((current) => {
+        if (!current.trim()) return prefix;
+        if (current.startsWith(prefix)) return current;
+        return `${prefix}${current}`.slice(0, MAX_POST_BYTES);
+      });
+      setStatus({
+        tone: "idle",
+        text: `Answering ${shortHash(item.contentHash)}.`,
+      });
+      appendLog("idle", `Answering line ${shortHash(item.contentHash)}.`, "line");
+      window.location.hash = "transmit";
+    },
+    [appendLog],
+  );
+
   const loadTimeline = useCallback(async () => {
     if (!contractReady) {
       setStatus({
@@ -647,6 +667,7 @@ export default function App() {
       );
       setPostFlash((n) => n + 1);
       setPostText("");
+      setAnsweringTo(null);
       clearImage();
       setBalanceRefresh((n) => n + 1);
       await loadTimeline();
@@ -1022,6 +1043,7 @@ export default function App() {
                       isTracked={trackedSet.has(item.author.toLowerCase())}
                       onTrack={trackSigner}
                       onForget={forgetSigner}
+                      onAnswer={answerLine}
                     />
                   ))}
             </div>
@@ -1146,6 +1168,23 @@ export default function App() {
                 </Field>
               </div>
             </details>
+
+            {answeringTo ? (
+              <div className="answering">
+                <div>
+                  <span className="answering__label">answering</span>
+                  <a href={lineHref(answeringTo)}>
+                    line {shortHash(answeringTo.contentHash)}
+                  </a>
+                  <span className="answering__author">
+                    from {shorten(answeringTo.author)}
+                  </span>
+                </div>
+                <button type="button" onClick={() => setAnsweringTo(null)}>
+                  clear
+                </button>
+              </div>
+            ) : null}
 
             <Field
               label="message"
@@ -1609,15 +1648,17 @@ function FeedRow({
   isTracked,
   onTrack,
   onForget,
+  onAnswer,
 }: {
   item: TimelineItem;
   explorer: string;
   isTracked: boolean;
   onTrack: (address: string) => void;
   onForget: (address: string) => void;
+  onAnswer: (item: TimelineItem) => void;
 }) {
   return (
-    <article className="feed-row" role="listitem">
+    <article id={lineId(item)} className="feed-row" role="listitem">
       <div className="feed-row__meta">
         <time className="feed-row__time" title={formatTime(item.createdAt)}>
           T-{formatRelative(item.createdAt)}
@@ -1673,6 +1714,16 @@ function FeedRow({
         </span>
         <span className="feed-row__label">crc</span>
         <span className="feed-row__crc">{shortHash(item.contentHash)}</span>
+        <a className="feed-row__link" href={lineHref(item)}>
+          line
+        </a>
+        <button
+          type="button"
+          className="feed-row__track"
+          onClick={() => onAnswer(item)}
+        >
+          answer
+        </button>
         {item.imageHash &&
         item.imageHash !==
           "0x0000000000000000000000000000000000000000000000000000000000000000" ? (
@@ -1750,6 +1801,14 @@ function shortHash(hash: string) {
   if (!hash) return "—";
   if (hash.length <= 12) return hash;
   return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+}
+
+function lineId(item: TimelineItem) {
+  return `line-${item.contentHash.slice(2)}`;
+}
+
+function lineHref(item: TimelineItem) {
+  return `#${lineId(item)}`;
 }
 
 function formatEthShort(value: string) {
