@@ -134,6 +134,7 @@ export default function App() {
   const [isLoadingSigcards, setIsLoadingSigcards] = useState(false);
   const [sigcardRefresh, setSigcardRefresh] = useState(0);
   const [answeringTo, setAnsweringTo] = useState<TimelineItem | null>(null);
+  const [echoingTo, setEchoingTo] = useState<TimelineItem | null>(null);
   const [hasQueriedTimeline, setHasQueriedTimeline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
@@ -463,6 +464,7 @@ export default function App() {
     (item: TimelineItem) => {
       const prefix = `re:${item.contentHash.slice(2, 10)} `;
       setAnsweringTo(item);
+      setEchoingTo(null);
       setPostText((current) => {
         if (!current.trim()) return prefix;
         if (current.startsWith(prefix)) return current;
@@ -473,6 +475,26 @@ export default function App() {
         text: `Answering ${shortHash(item.contentHash)}.`,
       });
       appendLog("idle", `Answering line ${shortHash(item.contentHash)}.`, "line");
+      window.location.hash = "transmit";
+    },
+    [appendLog],
+  );
+
+  const echoLine = useCallback(
+    (item: TimelineItem) => {
+      const prefix = `echo:${item.contentHash.slice(2, 10)} `;
+      setEchoingTo(item);
+      setAnsweringTo(null);
+      setPostText((current) => {
+        if (!current.trim()) return prefix;
+        if (current.startsWith(prefix)) return current;
+        return `${prefix}${current}`.slice(0, MAX_POST_BYTES);
+      });
+      setStatus({
+        tone: "idle",
+        text: `Echoing ${shortHash(item.contentHash)}.`,
+      });
+      appendLog("idle", `Echoing line ${shortHash(item.contentHash)}.`, "line");
       window.location.hash = "transmit";
     },
     [appendLog],
@@ -668,6 +690,7 @@ export default function App() {
       setPostFlash((n) => n + 1);
       setPostText("");
       setAnsweringTo(null);
+      setEchoingTo(null);
       clearImage();
       setBalanceRefresh((n) => n + 1);
       await loadTimeline();
@@ -744,6 +767,8 @@ export default function App() {
   );
 
   const txHref = lastTx ? `${network.explorer}/tx/${lastTx}` : "";
+  const composingLine = answeringTo ?? echoingTo;
+  const composingMode = answeringTo ? "answering" : "echoing";
 
   return (
     <div className="deck">
@@ -1044,6 +1069,7 @@ export default function App() {
                       onTrack={trackSigner}
                       onForget={forgetSigner}
                       onAnswer={answerLine}
+                      onEcho={echoLine}
                     />
                   ))}
             </div>
@@ -1169,18 +1195,24 @@ export default function App() {
               </div>
             </details>
 
-            {answeringTo ? (
+            {composingLine ? (
               <div className="answering">
                 <div>
-                  <span className="answering__label">answering</span>
-                  <a href={lineHref(answeringTo)}>
-                    line {shortHash(answeringTo.contentHash)}
+                  <span className="answering__label">{composingMode}</span>
+                  <a href={lineHref(composingLine)}>
+                    line {shortHash(composingLine.contentHash)}
                   </a>
                   <span className="answering__author">
-                    from {shorten(answeringTo.author)}
+                    from {shorten(composingLine.author)}
                   </span>
                 </div>
-                <button type="button" onClick={() => setAnsweringTo(null)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnsweringTo(null);
+                    setEchoingTo(null);
+                  }}
+                >
                   clear
                 </button>
               </div>
@@ -1649,6 +1681,7 @@ function FeedRow({
   onTrack,
   onForget,
   onAnswer,
+  onEcho,
 }: {
   item: TimelineItem;
   explorer: string;
@@ -1656,6 +1689,7 @@ function FeedRow({
   onTrack: (address: string) => void;
   onForget: (address: string) => void;
   onAnswer: (item: TimelineItem) => void;
+  onEcho: (item: TimelineItem) => void;
 }) {
   return (
     <article id={lineId(item)} className="feed-row" role="listitem">
@@ -1723,6 +1757,13 @@ function FeedRow({
           onClick={() => onAnswer(item)}
         >
           answer
+        </button>
+        <button
+          type="button"
+          className="feed-row__track"
+          onClick={() => onEcho(item)}
+        >
+          echo
         </button>
         {item.imageHash &&
         item.imageHash !==
