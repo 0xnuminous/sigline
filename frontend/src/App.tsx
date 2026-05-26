@@ -33,6 +33,7 @@ import {
   NetworkKey,
   NETWORKS,
   STORAGE_KEY,
+  Sigcard,
   StatusTone,
   TimelineItem,
   assertContractDeployed,
@@ -42,6 +43,7 @@ import {
   getDisplayErrorMessage,
   isAddressLike,
   parseBlock,
+  readSigcard,
   readSavedSettings,
   samplePosts,
   shorten,
@@ -81,6 +83,12 @@ import {
 } from "./uploads";
 
 type ScanScope = "all" | "tracked" | "address";
+
+type SigcardView = Sigcard & {
+  latestAt: number;
+  visibleCount: number;
+  error?: string;
+};
 
 const ASCII_TITLE = `
  ██████╗  █████╗ ███████╗███████╗   ████████╗██╗    ██╗████████╗██╗  ██╗████████╗
@@ -122,6 +130,9 @@ export default function App() {
       .map((value) => getAddress(value)),
   );
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const [sigcards, setSigcards] = useState<Record<string, Sigcard>>({});
+  const [isLoadingSigcards, setIsLoadingSigcards] = useState(false);
+  const [sigcardRefresh, setSigcardRefresh] = useState(0);
   const [hasQueriedTimeline, setHasQueriedTimeline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
@@ -274,8 +285,103 @@ export default function App() {
     () => new Set(trackedSigners.map((value) => value.toLowerCase())),
     [trackedSigners],
   );
+  const knownSignerAddresses = useMemo(() => {
+    const seen = new Map<string, string>();
+    const add = (value: string) => {
+      if (!isAddressLike(value)) return;
+      const normalized = getAddress(value);
+      seen.set(normalized.toLowerCase(), normalized);
+    };
+    if (account) add(account);
+    trackedSigners.forEach(add);
+    shownTimeline.forEach((item) => add(item.author));
+    return [...seen.values()].sort();
+  }, [account, shownTimeline, trackedSigners]);
+  const localSignerStats = useMemo(() => {
+    const stats = new Map<string, { latestAt: number; visibleCount: number }>();
+    shownTimeline.forEach((item) => {
+      const key = item.author.toLowerCase();
+      const current = stats.get(key);
+      stats.set(key, {
+        latestAt: Math.max(current?.latestAt ?? 0, item.createdAt),
+        visibleCount: (current?.visibleCount ?? 0) + 1,
+      });
+    });
+    return stats;
+  }, [shownTimeline]);
+  const sigcardViews = useMemo<SigcardView[]>(() => {
+    return knownSignerAddresses.map((address) => {
+      const key = address.toLowerCase();
+      const local = localSignerStats.get(key);
+      const remote = sigcards[key];
+      return {
+        address,
+        nick: remote?.nick ?? "",
+        twtUrl: remote?.twtUrl ?? "",
+        updatedAt: remote?.updatedAt ?? 0,
+        postCount: remote?.postCount ?? BigInt(local?.visibleCount ?? 0),
+        latestAt: local?.latestAt ?? 0,
+        visibleCount: local?.visibleCount ?? 0,
+      };
+    });
+  }, [knownSignerAddresses, localSignerStats, sigcards]);
   // The wallet is actively signing/waiting on a tx (not just scanning).
   const walletBusy = isPosting || isSealingId;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSigcards = async () => {
+      if (!contractReady || knownSignerAddresses.length === 0) {
+        setSigcards({});
+        setIsLoadingSigcards(false);
+        return;
+      }
+      setIsLoadingSigcards(true);
+      try {
+        const provider = new JsonRpcProvider(
+          rpcUrl || network.rpcUrl,
+          Number(network.chainId),
+        );
+        await assertContractDeployed(provider, contractAddress);
+        const entries = await Promise.all(
+          knownSignerAddresses.map(async (address) => {
+            try {
+              const card = await readSigcard(provider, contractAddress, address);
+              return [address.toLowerCase(), card] as const;
+            } catch {
+              return [
+                address.toLowerCase(),
+                {
+                  address,
+                  nick: "",
+                  twtUrl: "",
+                  updatedAt: 0,
+                  postCount: 0n,
+                },
+              ] as const;
+            }
+          }),
+        );
+        if (!cancelled) setSigcards(Object.fromEntries(entries));
+      } catch {
+        if (!cancelled) setSigcards({});
+      } finally {
+        if (!cancelled) setIsLoadingSigcards(false);
+      }
+    };
+    void loadSigcards();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    contractAddress,
+    contractReady,
+    knownSignerAddresses,
+    network.chainId,
+    network.rpcUrl,
+    rpcUrl,
+    sigcardRefresh,
+  ]);
 
   /* --------------------------------- actions -------------------------------- */
 
@@ -597,6 +703,7 @@ export default function App() {
         "identity",
       );
       setIdFlash((n) => n + 1);
+      setSigcardRefresh((n) => n + 1);
       setBalanceRefresh((n) => n + 1);
     } catch (error) {
       const msg = getDisplayErrorMessage(error);
@@ -918,6 +1025,47 @@ export default function App() {
                     />
                   ))}
             </div>
+          </Panel>
+        </section>
+
+        {/* ---------------------------- SIGCARDS ----------------------------- */}
+        <section id="sigcards" className="sigcards">
+          <Panel
+            label="SIGCARDS"
+            meta="Signer aliases and visible activity"
+            tone={
+              isLoadingSigcards
+                ? "warn"
+                : sigcardViews.length > 0
+                  ? "good"
+                  : "idle"
+            }
+            pending={isLoadingSigcards}
+            actions={
+              <span className="sigcards__count">
+                {sigcardViews.length} signer{sigcardViews.length === 1 ? "" : "s"}
+              </span>
+            }
+          >
+            {sigcardViews.length ? (
+              <div className="sigcard-list">
+                {sigcardViews.map((card) => (
+                  <SigcardRow
+                    key={card.address}
+                    card={card}
+                    explorer={network.explorer}
+                    isTracked={trackedSet.has(card.address.toLowerCase())}
+                    onTrack={trackSigner}
+                    onForget={forgetSigner}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No signers visible"
+                hint="Scan the wire or track an address to build a sigcard roster."
+              />
+            )}
           </Panel>
         </section>
 
@@ -1390,6 +1538,68 @@ function TelemetryTile({
       <div className="tile__v">{v}</div>
       {sub ? <div className="tile__sub">{sub}</div> : null}
     </div>
+  );
+}
+
+function SigcardRow({
+  card,
+  explorer,
+  isTracked,
+  onTrack,
+  onForget,
+}: {
+  card: SigcardView;
+  explorer: string;
+  isTracked: boolean;
+  onTrack: (address: string) => void;
+  onForget: (address: string) => void;
+}) {
+  const alias = card.nick.trim() || "anon";
+  const activity =
+    card.latestAt > 0 ? `latest T-${formatRelative(card.latestAt)}` : "no visible lines";
+  const totalLabel = card.postCount.toLocaleString();
+  return (
+    <article className="sigcard-row">
+      <div className="sigcard-row__mark" aria-hidden="true">
+        <Fingerprint size={18} />
+      </div>
+      <div className="sigcard-row__main">
+        <div className="sigcard-row__head">
+          <span className="sigcard-row__alias">{alias}</span>
+          <Hex
+            value={card.address}
+            href={`${explorer}/address/${card.address}`}
+            label="signer"
+          />
+        </div>
+        <div className="sigcard-row__meta">
+          <span>{totalLabel} line{card.postCount === 1n ? "" : "s"}</span>
+          <span aria-hidden="true">░</span>
+          <span>{activity}</span>
+          {card.updatedAt ? (
+            <>
+              <span aria-hidden="true">░</span>
+              <span>sigcard {formatTime(card.updatedAt)}</span>
+            </>
+          ) : null}
+          {card.twtUrl ? (
+            <>
+              <span aria-hidden="true">░</span>
+              <a href={card.twtUrl} target="_blank" rel="noreferrer">
+                twtxt
+              </a>
+            </>
+          ) : null}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="sigcard-row__track"
+        onClick={() => (isTracked ? onForget(card.address) : onTrack(card.address))}
+      >
+        {isTracked ? "tracked" : "track"}
+      </button>
+    </article>
   );
 }
 

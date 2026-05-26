@@ -35,6 +35,14 @@ export type TimelineItem = {
   blockNumber: number;
 };
 
+export type Sigcard = {
+  address: string;
+  nick: string;
+  twtUrl: string;
+  updatedAt: number;
+  postCount: bigint;
+};
+
 export type StatusTone = "idle" | "good" | "warn" | "bad";
 export type ContractMap = Record<NetworkKey, string>;
 
@@ -209,6 +217,25 @@ export function toTimelineItem(event: EventLog): TimelineItem {
     imageHash: String(args.imageHash ?? ZERO_HASH),
     txHash: event.transactionHash,
     blockNumber: event.blockNumber,
+  };
+}
+
+export async function readSigcard(
+  provider: JsonRpcProvider,
+  contractAddress: string,
+  address: string,
+): Promise<Sigcard> {
+  const contract = new Contract(contractAddress, ABI, provider);
+  const [profile, postCount] = await Promise.all([
+    contract.profile(address),
+    contract.postCount(address),
+  ]);
+  return {
+    address,
+    nick: String(profile.nick ?? profile[0] ?? ""),
+    twtUrl: String(profile.twtUrl ?? profile[1] ?? ""),
+    updatedAt: Number(profile.updatedAt ?? profile[2] ?? 0),
+    postCount: BigInt(postCount),
   };
 }
 

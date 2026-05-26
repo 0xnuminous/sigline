@@ -1424,6 +1424,111 @@ body::after {
     margin: 0 2px;
 }
 
+/* sigcards ------------------------------------------------------------------ */
+
+.sigcards {
+    scroll-margin-top: 72px;
+}
+
+.sigcards__count {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-faint);
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+}
+
+.sigcard-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 1px;
+    border: 1px solid var(--line);
+    background: var(--line);
+}
+
+.sigcard-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--s-3);
+    min-width: 0;
+    padding: var(--s-3);
+    background:
+        linear-gradient(90deg, rgba(46, 230, 255, 0.05), transparent 46%),
+        rgba(4, 7, 11, 0.92);
+}
+
+.sigcard-row__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: var(--cyan);
+    background: var(--ink-0);
+    border: 1px solid var(--line);
+}
+
+.sigcard-row__main {
+    min-width: 0;
+}
+
+.sigcard-row__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+    min-width: 0;
+}
+
+.sigcard-row__alias {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-hot);
+    overflow-wrap: anywhere;
+}
+
+.sigcard-row__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+}
+
+.sigcard-row__meta a {
+    color: var(--cyan);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.sigcard-row__meta a:hover {
+    color: var(--text-hot);
+}
+
+.sigcard-row__track {
+    align-self: center;
+    border: 1px solid var(--line);
+    background: rgba(11, 19, 34, 0.66);
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    padding: 5px 8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.sigcard-row__track:hover {
+    border-color: var(--cyan);
+    color: var(--text-hot);
+}
+
 .receipt {
     margin-left: auto;
     font-size: 11.5px;
@@ -1798,6 +1903,13 @@ body::after {
     .feed-row__image,
     .feed-row__foot {
         grid-column: 1;
+    }
+    .sigcard-row {
+        grid-template-columns: 34px minmax(0, 1fr);
+    }
+    .sigcard-row__track {
+        grid-column: 1 / -1;
+        justify-self: stretch;
     }
 
     .receive__bar {
