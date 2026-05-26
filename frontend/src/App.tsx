@@ -937,7 +937,8 @@ export default function App() {
 
           <p className="cmd__lede">
             Post short messages to a Base smart contract. Anyone can read them.
-            The contract stores posts only; your wallet signs each write.
+            Events carry the line text; contract storage keeps compact hash
+            pointers for verification.
           </p>
 
           <div className="cmd__motto" aria-hidden="true">

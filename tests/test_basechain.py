@@ -5,7 +5,7 @@ import pytest
 from web3.exceptions import Web3Exception
 
 from twtxt.basechain import BaseChainError, BaseConfigurationError, account_from_env
-from twtxt.basechain import get_base_tweets, get_profile, network_config, publish_tweet
+from twtxt.basechain import get_base_tweets, get_line_pointer, get_profile, network_config, publish_tweet
 from twtxt.basechain import normalize_address, resolve_rpc_url, to_base_url
 from twtxt.basechain import _send_transaction
 from twtxt.models import Source
@@ -201,6 +201,67 @@ def test_get_profile_wraps_web3_errors(monkeypatch):
 
     with pytest.raises(BaseChainError, match="Failed to fetch Base profile"):
         get_profile(address, contract_address=address)
+
+
+class FakeLineCall:
+    def __init__(self, value=None, error=None):
+        self.value = value or (b"\x12" * 32, 123, b"\x34" * 32)
+        self.error = error
+
+    def call(self):
+        if self.error:
+            raise self.error
+        return self.value
+
+
+class FakeLineFunctions:
+    def __init__(self, error=None):
+        self.error = error
+
+    def line(self, account, index):
+        assert account == "0x0000000000000000000000000000000000000001"
+        assert index == 2
+        return FakeLineCall(error=self.error)
+
+
+def test_get_line_pointer_returns_prefixed_hashes(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+    w3 = FakeWeb3()
+    contract = FakeContract(tweet_posted=FakePostPosted(), functions=FakeLineFunctions())
+    _patch_base_contract(monkeypatch, w3, contract)
+
+    line = get_line_pointer(address, 2, contract_address=address)
+
+    assert line == {
+        "content_hash": "0x" + ("12" * 32),
+        "created_at": 123,
+        "image_hash": "0x" + ("34" * 32),
+    }
+
+
+def test_get_line_pointer_wraps_web3_errors(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+    w3 = FakeWeb3()
+    contract = FakeContract(
+        tweet_posted=FakePostPosted(),
+        functions=FakeLineFunctions(error=Web3Exception("execution reverted")),
+    )
+    _patch_base_contract(monkeypatch, w3, contract)
+
+    with pytest.raises(BaseChainError, match="Failed to fetch Base line pointer"):
+        get_line_pointer(address, 2, contract_address=address)
+
+
+def test_get_line_pointer_rejects_invalid_index(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+
+    def fail_connect(**kwargs):
+        raise AssertionError("invalid indexes should fail before RPC setup")
+
+    monkeypatch.setattr("twtxt.basechain.connect", fail_connect)
+
+    with pytest.raises(BaseConfigurationError, match="Invalid Base line index"):
+        get_line_pointer(address, -1, contract_address=address)
 
 
 class FakeAccount:

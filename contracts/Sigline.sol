@@ -20,7 +20,14 @@ contract Sigline is Ownable2Step, Pausable {
         uint64 updatedAt;
     }
 
+    struct Line {
+        bytes32 contentHash;
+        uint64 createdAt;
+        bytes32 imageHash;
+    }
+
     mapping(address account => uint256 count) private _postCounts;
+    mapping(address account => mapping(uint256 index => Line line)) private _lines;
     mapping(address account => Profile profile) private _profiles;
 
     event PostPosted(
@@ -76,6 +83,7 @@ contract Sigline is Ownable2Step, Pausable {
         contentHash = keccak256(
             abi.encode(block.chainid, address(this), msg.sender, index, createdAt, text, imageUri, imageHash)
         );
+        _lines[msg.sender][index] = Line({contentHash: contentHash, createdAt: createdAt, imageHash: imageHash});
 
         emit PostPosted(msg.sender, index, createdAt, contentHash, text, imageUri, imageHash);
     }
@@ -106,6 +114,10 @@ contract Sigline is Ownable2Step, Pausable {
 
     function postCount(address account) external view returns (uint256) {
         return _postCounts[account];
+    }
+
+    function line(address account, uint256 index) external view returns (Line memory) {
+        return _lines[account][index];
     }
 
     function profile(address account) external view returns (Profile memory) {

@@ -116,6 +116,26 @@ SIGLINE_ABI = [
     },
     {
         "type": "function",
+        "name": "line",
+        "stateMutability": "view",
+        "inputs": [
+            {"name": "account", "type": "address"},
+            {"name": "index", "type": "uint256"},
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "tuple",
+                "components": [
+                    {"name": "contentHash", "type": "bytes32"},
+                    {"name": "createdAt", "type": "uint64"},
+                    {"name": "imageHash", "type": "bytes32"},
+                ],
+            }
+        ],
+    },
+    {
+        "type": "function",
         "name": "postCount",
         "stateMutability": "view",
         "inputs": [{"name": "account", "type": "address"}],
@@ -243,6 +263,17 @@ def get_profile(account, contract_address, network=DEFAULT_NETWORK, rpc_url=None
     except (Web3Exception, ValueError) as e:
         raise BaseChainError("Failed to fetch Base profile: {0}".format(e)) from e
     return {"nick": profile[0], "twturl": profile[1], "updated_at": profile[2]}
+
+
+def get_line_pointer(account, index, contract_address, network=DEFAULT_NETWORK, rpc_url=None, timeout=5.0):
+    line_index = _parse_block_number(index, "line index")
+    w3, _ = connect(network=network, rpc_url=rpc_url, timeout=timeout)
+    contract = contract_for(w3, resolve_contract_address(contract_address))
+    try:
+        line = contract.functions.line(normalize_address(account), line_index).call()
+    except (Web3Exception, ValueError) as e:
+        raise BaseChainError("Failed to fetch Base line pointer: {0}".format(e)) from e
+    return {"content_hash": Web3.to_hex(line[0]), "created_at": line[1], "image_hash": Web3.to_hex(line[2])}
 
 
 def get_base_tweets(sources, contract_address, network=DEFAULT_NETWORK, rpc_url=None,

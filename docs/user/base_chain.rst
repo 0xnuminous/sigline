@@ -13,8 +13,10 @@ Security model
 
 The contract is deliberately small:
 
-- Posts are append-only events. The contract stores only per-account post counts
-  and small profile records.
+- Full post payloads are append-only events. The contract also stores a small
+  line pointer for each signer/index: content hash, timestamp, and image hash.
+  This lets clients verify a line by address and index without storing full text
+  in contract storage.
 - Accounts can only post for themselves and update their own profile.
 - Posts are capped at 140 bytes on-chain, matching original Twitter-length
   posts for ASCII text. Nick and URL byte lengths are also bounded.

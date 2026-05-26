@@ -6,8 +6,9 @@ Sigline
 
 Sigline started as a fork of ``buckket/twtxt`` and keeps the flat-file client
 available, but the primary path is now wallet-signed posting to an append-only
-Base smart contract event log. The contract stores post events and small profile
-records only; your wallet signs each write.
+Base smart contract. Full line payloads are emitted as append-only events, while
+the contract stores small per-line hash pointers plus profile records; your
+wallet signs each write.
 
 
 **tl;dr**: Sigline is a Base-native microfeed with a CLI, smart contract, and
@@ -19,7 +20,9 @@ Features
 - A beautiful command-line interface thanks to click.
 - Asynchronous HTTP requests thanks to asyncio/aiohttp and Python 3.
 - Integrates well with existing tools (scp, cut, echo, date, etc.) and your shell.
-- Base-chain publishing and timeline reads via an append-only smart contract event log.
+- Base-chain publishing and timeline reads via append-only smart contract events.
+- On-chain line pointers by signer/index for hash verification without replaying
+  all logs.
 - Wallet-based Vite/React frontend for posting, profile publishing, and feed reads.
 - Optional image attachments via local IPFS or a bring-your-own IPFS/Arweave
   upload endpoint. Sigline stores only the image URI and hash; it does not host

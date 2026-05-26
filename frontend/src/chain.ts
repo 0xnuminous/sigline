@@ -35,6 +35,12 @@ export type TimelineItem = {
   blockNumber: number;
 };
 
+export type LinePointer = {
+  contentHash: string;
+  createdAt: number;
+  imageHash: string;
+};
+
 export type Sigcard = {
   address: string;
   nick: string;
@@ -77,6 +83,7 @@ export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
 export const ABI = [
   "function post(string text, string imageUri, bytes32 imageHash) returns (uint256 index, bytes32 contentHash)",
   "function setProfile(string nick, string twtUrl)",
+  "function line(address account, uint256 index) view returns (tuple(bytes32 contentHash, uint64 createdAt, bytes32 imageHash))",
   "function profile(address account) view returns (tuple(string nick, string twtUrl, uint64 updatedAt))",
   "function postCount(address account) view returns (uint256)",
   "event PostPosted(address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text, string imageUri, bytes32 imageHash)",
@@ -236,6 +243,21 @@ export async function readSigcard(
     twtUrl: String(profile.twtUrl ?? profile[1] ?? ""),
     updatedAt: Number(profile.updatedAt ?? profile[2] ?? 0),
     postCount: BigInt(postCount),
+  };
+}
+
+export async function readLinePointer(
+  provider: JsonRpcProvider,
+  contractAddress: string,
+  author: string,
+  index: bigint,
+): Promise<LinePointer> {
+  const contract = new Contract(contractAddress, ABI, provider);
+  const line = await contract.line(author, index);
+  return {
+    contentHash: String(line.contentHash ?? line[0] ?? ZERO_HASH),
+    createdAt: Number(line.createdAt ?? line[1] ?? 0),
+    imageHash: String(line.imageHash ?? line[2] ?? ZERO_HASH),
   };
 }
 

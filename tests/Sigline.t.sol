@@ -66,6 +66,10 @@ contract SiglineTest {
         assert(firstIndex == 0);
         assert(firstHash == expectedHash);
         assert(registry.postCount(address(this)) == 1);
+        Sigline.Line memory firstLine = registry.line(address(this), firstIndex);
+        assert(firstLine.contentHash == expectedHash);
+        assert(firstLine.createdAt == createdAt);
+        assert(firstLine.imageHash == bytes32(0));
 
         (uint256 actorIndex,) = actor.post(registry, "hello from actor");
         assert(actorIndex == 0);
@@ -105,6 +109,17 @@ contract SiglineTest {
         (uint256 index, bytes32 contentHash) = registry.post(text, imageUri, imageHash);
         assert(index == 0);
         assert(contentHash == expectedHash);
+        Sigline.Line memory line = registry.line(address(this), index);
+        assert(line.contentHash == expectedHash);
+        assert(line.createdAt == createdAt);
+        assert(line.imageHash == imageHash);
+    }
+
+    function testMissingLinePointerIsEmpty() public view {
+        Sigline.Line memory line = registry.line(address(this), 999);
+        assert(line.contentHash == bytes32(0));
+        assert(line.createdAt == 0);
+        assert(line.imageHash == bytes32(0));
     }
 
     function testRejectsImageWithoutHash() public {
