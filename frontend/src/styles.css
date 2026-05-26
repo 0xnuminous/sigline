@@ -1368,7 +1368,9 @@ body::after {
 
 .receive__bar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(140px, 180px) auto;
+    grid-template-columns:
+        minmax(150px, 0.45fr) minmax(0, 1fr) minmax(140px, 180px)
+        auto;
     gap: var(--s-3);
     align-items: end;
     padding-bottom: var(--s-2);
@@ -1376,7 +1378,41 @@ body::after {
 }
 .receive__bar-actions {
     display: flex;
+    gap: var(--s-2);
     align-items: center;
+}
+
+.tracked-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-3) 0 0;
+}
+
+.tracked-strip__label,
+.tracked-strip__empty {
+    color: var(--text-faint);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+}
+
+.tracked-pill {
+    border: 1px solid var(--line);
+    background: rgba(11, 19, 34, 0.66);
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    padding: 3px 7px;
+    text-transform: uppercase;
+}
+
+.tracked-pill:hover {
+    border-color: var(--cyan);
+    color: var(--text-hot);
 }
 
 .receive__note {
@@ -1561,6 +1597,21 @@ body::after {
 }
 .feed-row__crc {
     color: var(--cyan);
+}
+.feed-row__track {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    padding: 1px 5px;
+    text-transform: uppercase;
+}
+.feed-row__track:hover {
+    border-color: var(--cyan);
+    color: var(--text-hot);
 }
 
 .feed-row--skeleton {

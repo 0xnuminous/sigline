@@ -80,6 +80,8 @@ import {
   validateImageFile,
 } from "./uploads";
 
+type ScanScope = "all" | "tracked" | "address";
+
 const ASCII_TITLE = `
  ██████╗  █████╗ ███████╗███████╗   ████████╗██╗    ██╗████████╗██╗  ██╗████████╗
  ██╔══██╗██╔══██╗██╔════╝██╔════╝   ╚══██╔══╝██║    ██║╚══██╔══╝╚██╗██╔╝╚══██╔══╝
@@ -109,6 +111,16 @@ export default function App() {
   const [nick, setNick] = useState("");
   const [twtUrl, setTwtUrl] = useState("");
   const [targetAddress, setTargetAddress] = useState("");
+  const [scanScope, setScanScope] = useState<ScanScope>(
+    saved.scanScope === "tracked" || saved.scanScope === "address"
+      ? saved.scanScope
+      : "all",
+  );
+  const [trackedSigners, setTrackedSigners] = useState<string[]>(() =>
+    (saved.trackedSigners ?? [])
+      .filter((value) => isAddressLike(value))
+      .map((value) => getAddress(value)),
+  );
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [hasQueriedTimeline, setHasQueriedTimeline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -165,6 +177,8 @@ export default function App() {
         fromBlock,
         imageUploadMode,
         imageUploadEndpoint,
+        scanScope,
+        trackedSigners,
       }),
     );
   }, [
@@ -174,6 +188,8 @@ export default function App() {
     fromBlock,
     imageUploadMode,
     imageUploadEndpoint,
+    scanScope,
+    trackedSigners,
   ]);
 
   useEffect(() => {
@@ -254,6 +270,10 @@ export default function App() {
   const chainAligned = walletChain === null || walletChain === network.chainId;
   const isPreviewTimeline = !hasQueriedTimeline && timeline.length === 0;
   const shownTimeline = isPreviewTimeline ? samplePosts : timeline;
+  const trackedSet = useMemo(
+    () => new Set(trackedSigners.map((value) => value.toLowerCase())),
+    [trackedSigners],
+  );
   // The wallet is actively signing/waiting on a tx (not just scanning).
   const walletBusy = isPosting || isSealingId;
 
@@ -301,6 +321,37 @@ export default function App() {
     }
   }, [appendLog, network]);
 
+  const trackSigner = useCallback(
+    (value: string) => {
+      if (!isAddressLike(value)) {
+        setStatus({ tone: "warn", text: "That signer address is invalid." });
+        return;
+      }
+      const normalized = getAddress(value);
+      setTrackedSigners((current) => {
+        if (current.some((item) => item.toLowerCase() === normalized.toLowerCase())) {
+          return current;
+        }
+        return [...current, normalized].sort();
+      });
+      setStatus({ tone: "good", text: `Tracking ${shorten(normalized)}.` });
+      appendLog("good", `Tracking signer ${shorten(normalized)}.`, "track");
+    },
+    [appendLog],
+  );
+
+  const forgetSigner = useCallback(
+    (value: string) => {
+      const normalized = getAddress(value);
+      setTrackedSigners((current) =>
+        current.filter((item) => item.toLowerCase() !== normalized.toLowerCase()),
+      );
+      setStatus({ tone: "idle", text: `Stopped tracking ${shorten(normalized)}.` });
+      appendLog("idle", `Forgot signer ${shorten(normalized)}.`, "track");
+    },
+    [appendLog],
+  );
+
   const loadTimeline = useCallback(async () => {
     if (!contractReady) {
       setStatus({
@@ -310,6 +361,10 @@ export default function App() {
       return;
     }
     const normalizedTarget = targetAddress.trim();
+    if (scanScope === "address" && !normalizedTarget) {
+      setStatus({ tone: "warn", text: "Enter a signer address to scan." });
+      return;
+    }
     if (normalizedTarget && !isAddressLike(normalizedTarget)) {
       setStatus({
         tone: "warn",
@@ -317,9 +372,19 @@ export default function App() {
       });
       return;
     }
+    if (scanScope === "tracked" && trackedSigners.length === 0) {
+      setStatus({ tone: "warn", text: "Track at least one signer first." });
+      return;
+    }
     try {
       setIsLoading(true);
-      appendLog("idle", "Scanning for posts…", "scan");
+      appendLog(
+        "idle",
+        scanScope === "tracked"
+          ? `Scanning ${trackedSigners.length} tracked signer${trackedSigners.length === 1 ? "" : "s"}…`
+          : "Scanning for posts…",
+        "scan",
+      );
       const provider = new JsonRpcProvider(
         rpcUrl || network.rpcUrl,
         Number(network.chainId),
@@ -327,10 +392,19 @@ export default function App() {
       await assertContractDeployed(provider, contractAddress);
       const contract = new Contract(contractAddress, ABI, provider);
       const startBlock = parseBlock(fromBlock);
-      const filter = normalizedTarget
-        ? contract.filters.PostPosted(getAddress(normalizedTarget))
-        : contract.filters.PostPosted();
-      const events = await contract.queryFilter(filter, startBlock, "latest");
+      const signers =
+        scanScope === "tracked"
+          ? trackedSigners
+          : scanScope === "address"
+            ? [getAddress(normalizedTarget)]
+            : [];
+      const filters = signers.length
+        ? signers.map((address) => contract.filters.PostPosted(address))
+        : [contract.filters.PostPosted()];
+      const eventGroups = await Promise.all(
+        filters.map((filter) => contract.queryFilter(filter, startBlock, "latest")),
+      );
+      const events = eventGroups.flat();
       const parsed = events
         .filter((event): event is EventLog => event instanceof EventLog)
         .map((event) => toTimelineItem(event))
@@ -358,7 +432,9 @@ export default function App() {
     fromBlock,
     network,
     rpcUrl,
+    scanScope,
     targetAddress,
+    trackedSigners,
   ]);
 
   const clearImage = useCallback(() => {
@@ -739,9 +815,19 @@ export default function App() {
             }
           >
             <div className="receive__bar">
+              <Field label="wire scope" hint="Choose who to scan">
+                <Select
+                  value={scanScope}
+                  onChange={(event) => setScanScope(event.target.value as ScanScope)}
+                >
+                  <option value="all">all signers</option>
+                  <option value="tracked">tracked only</option>
+                  <option value="address">one signer</option>
+                </Select>
+              </Field>
               <Field
-                label="author filter"
-                hint="Leave empty to load posts from everyone"
+                label="signer address"
+                hint="Track or scan one signer"
                 optional
               >
                 <Input
@@ -760,6 +846,14 @@ export default function App() {
               </Field>
               <div className="receive__bar-actions">
                 <Button
+                  variant="ghost"
+                  icon={<Fingerprint size={14} />}
+                  onClick={() => trackSigner(targetAddress)}
+                  disabled={!isAddressLike(targetAddress)}
+                >
+                  track
+                </Button>
+                <Button
                   variant="primary"
                   icon={<Radio size={14} />}
                   onClick={loadTimeline}
@@ -769,6 +863,29 @@ export default function App() {
                   {isLoading ? "scanning…" : "scan"}
                 </Button>
               </div>
+            </div>
+
+            <div className="tracked-strip" aria-label="Tracked signers">
+              <span className="tracked-strip__label">
+                tracking {trackedSigners.length}
+              </span>
+              {trackedSigners.length ? (
+                trackedSigners.map((signer) => (
+                  <button
+                    type="button"
+                    className="tracked-pill"
+                    key={signer}
+                    onClick={() => forgetSigner(signer)}
+                    title="Stop tracking signer"
+                  >
+                    {shorten(signer)} ×
+                  </button>
+                ))
+              ) : (
+                <span className="tracked-strip__empty">
+                  Track signers from the wire or by address.
+                </span>
+              )}
             </div>
 
             {isPreviewTimeline ? (
@@ -795,6 +912,9 @@ export default function App() {
                       key={item.id}
                       item={item}
                       explorer={network.explorer}
+                      isTracked={trackedSet.has(item.author.toLowerCase())}
+                      onTrack={trackSigner}
+                      onForget={forgetSigner}
                     />
                   ))}
             </div>
@@ -1273,7 +1393,19 @@ function TelemetryTile({
   );
 }
 
-function FeedRow({ item, explorer }: { item: TimelineItem; explorer: string }) {
+function FeedRow({
+  item,
+  explorer,
+  isTracked,
+  onTrack,
+  onForget,
+}: {
+  item: TimelineItem;
+  explorer: string;
+  isTracked: boolean;
+  onTrack: (address: string) => void;
+  onForget: (address: string) => void;
+}) {
   return (
     <article className="feed-row" role="listitem">
       <div className="feed-row__meta">
@@ -1305,6 +1437,13 @@ function FeedRow({ item, explorer }: { item: TimelineItem; explorer: string }) {
           href={`${explorer}/address/${item.author}`}
           label="author"
         />
+        <button
+          type="button"
+          className="feed-row__track"
+          onClick={() => (isTracked ? onForget(item.author) : onTrack(item.author))}
+        >
+          {isTracked ? "tracked" : "track"}
+        </button>
         <span className="feed-row__sep" aria-hidden="true">
           ░
         </span>

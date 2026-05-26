@@ -90,7 +90,7 @@ export const STORAGE_KEY = "sigline.frontend.v1";
 export const samplePosts: TimelineItem[] = [
   {
     id: "sample-1",
-    author: "0x8fC6e1D2f21Bb22B1013D05ecF1F06fD73CdCB34",
+    author: "0x8fc6e1d2f21bb22b1013d05ecf1f06fd73cdcb34",
     index: 2n,
     createdAt: Math.floor(Date.now() / 1000) - 420,
     contentHash:
@@ -104,7 +104,7 @@ export const samplePosts: TimelineItem[] = [
   },
   {
     id: "sample-2",
-    author: "0xaB7C8803962c0f2F5BBBe3FA8bf41cd82AA1923C",
+    author: "0xab7c8803962c0f2f5bbbe3fa8bf41cd82aa1923c",
     index: 0n,
     createdAt: Math.floor(Date.now() / 1000) - 2580,
     contentHash:
@@ -219,6 +219,8 @@ export function readSavedSettings(): {
   fromBlock: string;
   imageUploadMode?: string;
   imageUploadEndpoint?: string;
+  scanScope?: string;
+  trackedSigners?: string[];
 } {
   try {
     const parsed = JSON.parse(
@@ -231,6 +233,8 @@ export function readSavedSettings(): {
       fromBlock: string;
       imageUploadMode: string;
       imageUploadEndpoint: string;
+      scanScope: string;
+      trackedSigners: string[];
     }>;
     const networkKey =
       parsed.networkKey && NETWORKS[parsed.networkKey]
@@ -253,6 +257,10 @@ export function readSavedSettings(): {
       fromBlock: parsed.fromBlock ?? DEFAULT_FROM_BLOCK,
       imageUploadMode: parsed.imageUploadMode,
       imageUploadEndpoint: parsed.imageUploadEndpoint,
+      scanScope: parsed.scanScope,
+      trackedSigners: Array.isArray(parsed.trackedSigners)
+        ? parsed.trackedSigners
+        : [],
     };
   } catch {
     return {
@@ -264,6 +272,7 @@ export function readSavedSettings(): {
       },
       rpcUrl: DEFAULT_RPC,
       fromBlock: DEFAULT_FROM_BLOCK,
+      trackedSigners: [],
     };
   }
 }
