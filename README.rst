@@ -40,6 +40,19 @@ publishing, and event timeline reads:
     $ npm install
     $ npm run dev
 
+Quality checks
+--------------
+
+Run the full local verification stack before pushing:
+
+.. code-block:: console
+
+    $ npm run check
+
+That command keeps Python on uv-managed tooling (``uv run ruff check .`` and
+``uv run pytest``), checks the frontend with ESLint, TypeScript, and Vite, then
+checks and tests the Solidity contracts with Foundry.
+
 Community
 ---------
 

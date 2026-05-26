@@ -77,9 +77,7 @@ contract SiglineTest {
             text[i] = "x";
         }
 
-        vm.expectRevert(
-            abi.encodeWithSelector(Sigline.PostTooLong.selector, text.length, registry.MAX_POST_BYTES())
-        );
+        vm.expectRevert(abi.encodeWithSelector(Sigline.PostTooLong.selector, text.length, registry.MAX_POST_BYTES()));
         registry.post(string(text));
     }
 

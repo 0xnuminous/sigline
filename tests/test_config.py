@@ -100,7 +100,7 @@ def check_cfg(cfg):
     assert cfg.sorting == "ascending"
     assert cfg.post_tweet_hook == "echo {twtfile"
     assert cfg.pre_tweet_hook == "echo {twtfile"
-    assert cfg.check_config_sanity() == True
+    assert cfg.check_config_sanity() is True
 
 
 def test_from_file(config_dir):
@@ -126,8 +126,8 @@ def test_discover():
 def test_create_config(config_dir):
     config_dir_old = Config.config_dir
     Config.config_dir = str(config_dir.join("new"))
-    conf_w = Config.create_config(os.path.join(Config.config_dir, Config.config_name),
-                                  "bar", "batz.txt", "https://example.org", False, True)
+    Config.create_config(os.path.join(Config.config_dir, Config.config_name),
+                         "bar", "batz.txt", "https://example.org", False, True)
     conf_r = Config.discover()
     assert conf_r.nick == "bar"
     assert conf_r.twtfile == "batz.txt"

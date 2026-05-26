@@ -29,8 +29,6 @@ def test_format_mentions():
 
 def test_format_multi_mentions():
     text = '@<SomeName http://url> and another @<AnotherName http://another/url> end'
-    mentions = (('SomeName', 'http://url'),
-                ('AnotherName', 'http://another/url'))
 
     def mock_multi_mention_format(name, url):
         return '@' + name
@@ -40,8 +38,6 @@ def test_format_multi_mentions():
 
 def test_format_multi_mentions_incomplete():
     text = '@<http://url> and another @<AnotherName http://another/url> end'
-    mentions = ((None, 'http://url'),
-                ('AnotherName', 'http://another/url'))
 
     def mock_multi_mention_format(name, url):
         if name:
@@ -50,7 +46,3 @@ def test_format_multi_mentions_incomplete():
             return '@' + url
 
     format_mentions(text, mock_multi_mention_format)
-
-    text = '@<SomeName http://url> and another @<http://another/url> end'
-    mentions = (('SomeName', 'http://url'),
-                (None, 'http://another/url'))
