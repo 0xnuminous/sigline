@@ -28,6 +28,7 @@ LEGACY_CONTRACT_ENV = "TWTXT_BASE_CONTRACT"
 DEFAULT_NETWORK = "base-sepolia"
 BASE_URL_PREFIX = "base://"
 DEFAULT_LOG_CHUNK_SIZE = 10000
+MAX_POST_BYTES = 140
 
 
 @dataclass(frozen=True)
@@ -267,6 +268,11 @@ def get_base_tweets(sources, contract_address, network=DEFAULT_NETWORK, rpc_url=
 
 def publish_tweet(text, contract_address, network=DEFAULT_NETWORK, rpc_url=None,
                   private_key_env=PRIVATE_KEY_ENV, timeout=120):
+    text_length = len(text.encode("utf-8"))
+    if text_length > MAX_POST_BYTES:
+        raise BaseConfigurationError(
+            "Base post is too long: {0} bytes exceeds the {1} byte limit.".format(text_length, MAX_POST_BYTES)
+        )
     contract, account, cfg, w3 = _transaction_context(
         contract_address=contract_address,
         network=network,

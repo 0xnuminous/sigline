@@ -28,6 +28,7 @@ import {
 import {
   ABI,
   ContractMap,
+  MAX_POST_BYTES,
   NetworkKey,
   NETWORKS,
   STORAGE_KEY,
@@ -204,6 +205,10 @@ export default function App() {
     () => isAddressLike(contractAddress),
     [contractAddress],
   );
+  const postBytes = useMemo(
+    () => new TextEncoder().encode(postText.trim()).length,
+    [postText],
+  );
   const chainAligned = walletChain === null || walletChain === network.chainId;
   const isPreviewTimeline = !hasQueriedTimeline && timeline.length === 0;
   const shownTimeline = isPreviewTimeline ? samplePosts : timeline;
@@ -326,6 +331,13 @@ export default function App() {
       setStatus({ tone: "warn", text: "Write something first." });
       return;
     }
+    if (postBytes > MAX_POST_BYTES) {
+      setStatus({
+        tone: "warn",
+        text: `Keep posts to ${MAX_POST_BYTES} bytes. This one is ${postBytes}.`,
+      });
+      return;
+    }
     try {
       setIsPosting(true);
       appendLog("idle", "Preparing post…", "post");
@@ -361,6 +373,7 @@ export default function App() {
     contractReady,
     loadTimeline,
     network,
+    postBytes,
     postText,
   ]);
 
@@ -756,12 +769,12 @@ export default function App() {
 
             <Field
               label="message"
-              hint={`${postText.length}/560 — signed by your wallet, written to the contract`}
+              hint={`${postBytes}/${MAX_POST_BYTES} bytes — original Twitter-length cap`}
             >
               <Textarea
                 value={postText}
                 onChange={(event) => setPostText(event.target.value)}
-                maxLength={560}
+                maxLength={MAX_POST_BYTES}
                 rows={4}
                 placeholder="What do you want to say?"
               />
@@ -1002,7 +1015,7 @@ export default function App() {
               <TrustRow
                 tag="SIZE LIMITS"
                 title="Posts have hard caps"
-                body="Messages up to 560 characters. Alias up to 64. URL up to 512. Predictable gas, no surprises."
+                body="Messages up to 140 bytes. Alias up to 64. URL up to 512. Predictable gas, no surprises."
               />
               <TrustRow
                 tag="PUBLIC HISTORY"

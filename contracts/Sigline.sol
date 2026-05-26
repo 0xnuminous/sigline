@@ -9,7 +9,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 /// @notice Append-only Sigline feed events for Base and Base Sepolia.
 /// @dev The contract does not custody native tokens or ERC-20 tokens.
 contract Sigline is Ownable2Step, Pausable {
-    uint256 public constant MAX_POST_BYTES = 560;
+    uint256 public constant MAX_POST_BYTES = 140;
     uint256 public constant MAX_NICK_BYTES = 64;
     uint256 public constant MAX_URL_BYTES = 512;
 

@@ -36,6 +36,8 @@ export type TimelineItem = {
 export type StatusTone = "idle" | "good" | "warn" | "bad";
 export type ContractMap = Record<NetworkKey, string>;
 
+export const MAX_POST_BYTES = 140;
+
 export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
   "base-sepolia": {
     key: "base-sepolia",

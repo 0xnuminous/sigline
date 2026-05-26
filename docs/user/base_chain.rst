@@ -16,7 +16,8 @@ The contract is deliberately small:
 - Posts are append-only events. The contract stores only per-account post counts
   and small profile records.
 - Accounts can only post for themselves and update their own profile.
-- Post, nick, and URL byte lengths are bounded on-chain.
+- Posts are capped at 140 bytes on-chain, matching original Twitter-length
+  posts for ASCII text. Nick and URL byte lengths are also bounded.
 - The contract rejects native-token transfers and does not implement token
   rescue or withdrawal flows.
 - The owner can pause and unpause writes, and ownership transfer is two-step.

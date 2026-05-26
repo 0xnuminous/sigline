@@ -5,7 +5,7 @@ import pytest
 from web3.exceptions import Web3Exception
 
 from twtxt.basechain import BaseChainError, BaseConfigurationError, account_from_env
-from twtxt.basechain import get_base_tweets, get_profile, network_config
+from twtxt.basechain import get_base_tweets, get_profile, network_config, publish_tweet
 from twtxt.basechain import normalize_address, resolve_rpc_url, to_base_url
 from twtxt.basechain import _send_transaction
 from twtxt.models import Source
@@ -51,6 +51,16 @@ def test_account_from_env_rejects_missing_or_invalid_key(monkeypatch):
     monkeypatch.setenv("SIGLINE_BASE_PRIVATE_KEY", "not-a-key")
     with pytest.raises(BaseConfigurationError):
         account_from_env()
+
+
+def test_publish_tweet_rejects_posts_over_original_twitter_limit(monkeypatch):
+    def fail_transaction_context(*args, **kwargs):
+        raise AssertionError("oversized posts should fail before RPC setup")
+
+    monkeypatch.setattr("twtxt.basechain._transaction_context", fail_transaction_context)
+
+    with pytest.raises(BaseConfigurationError, match="141 bytes exceeds the 140 byte limit"):
+        publish_tweet("x" * 141, "0x0000000000000000000000000000000000000001")
 
 
 class FakeEth:
