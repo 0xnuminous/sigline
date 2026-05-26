@@ -129,6 +129,12 @@ export default function App() {
       .filter((value) => isAddressLike(value))
       .map((value) => getAddress(value)),
   );
+  const [mutedSigners, setMutedSigners] = useState<string[]>(() =>
+    (saved.mutedSigners ?? [])
+      .filter((value) => isAddressLike(value))
+      .map((value) => getAddress(value)),
+  );
+  const [showMuted, setShowMuted] = useState(Boolean(saved.showMuted));
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [sigcards, setSigcards] = useState<Record<string, Sigcard>>({});
   const [isLoadingSigcards, setIsLoadingSigcards] = useState(false);
@@ -192,6 +198,8 @@ export default function App() {
         imageUploadEndpoint,
         scanScope,
         trackedSigners,
+        mutedSigners,
+        showMuted,
       }),
     );
   }, [
@@ -203,6 +211,8 @@ export default function App() {
     imageUploadEndpoint,
     scanScope,
     trackedSigners,
+    mutedSigners,
+    showMuted,
   ]);
 
   useEffect(() => {
@@ -286,6 +296,17 @@ export default function App() {
   const trackedSet = useMemo(
     () => new Set(trackedSigners.map((value) => value.toLowerCase())),
     [trackedSigners],
+  );
+  const mutedSet = useMemo(
+    () => new Set(mutedSigners.map((value) => value.toLowerCase())),
+    [mutedSigners],
+  );
+  const visibleTimeline = useMemo(
+    () =>
+      showMuted
+        ? shownTimeline
+        : shownTimeline.filter((item) => !mutedSet.has(item.author.toLowerCase())),
+    [mutedSet, showMuted, shownTimeline],
   );
   const knownSignerAddresses = useMemo(() => {
     const seen = new Map<string, string>();
@@ -456,6 +477,37 @@ export default function App() {
       );
       setStatus({ tone: "idle", text: `Stopped tracking ${shorten(normalized)}.` });
       appendLog("idle", `Forgot signer ${shorten(normalized)}.`, "track");
+    },
+    [appendLog],
+  );
+
+  const muteSigner = useCallback(
+    (value: string) => {
+      if (!isAddressLike(value)) {
+        setStatus({ tone: "warn", text: "That signer address is invalid." });
+        return;
+      }
+      const normalized = getAddress(value);
+      setMutedSigners((current) => {
+        if (current.some((item) => item.toLowerCase() === normalized.toLowerCase())) {
+          return current;
+        }
+        return [...current, normalized].sort();
+      });
+      setStatus({ tone: "idle", text: `Muted ${shorten(normalized)} locally.` });
+      appendLog("idle", `Muted signer ${shorten(normalized)} locally.`, "safety");
+    },
+    [appendLog],
+  );
+
+  const unmuteSigner = useCallback(
+    (value: string) => {
+      const normalized = getAddress(value);
+      setMutedSigners((current) =>
+        current.filter((item) => item.toLowerCase() !== normalized.toLowerCase()),
+      );
+      setStatus({ tone: "good", text: `Unmuted ${shorten(normalized)}.` });
+      appendLog("good", `Unmuted signer ${shorten(normalized)}.`, "safety");
     },
     [appendLog],
   );
@@ -1048,10 +1100,14 @@ export default function App() {
               </p>
             ) : null}
 
-            {!isPreviewTimeline && shownTimeline.length === 0 ? (
+            {!isPreviewTimeline && visibleTimeline.length === 0 ? (
               <EmptyState
-                title="No posts found"
-                hint="Try lowering the start block, removing the author filter, or double-checking the contract address."
+                title={timeline.length ? "No posts visible" : "No posts found"}
+                hint={
+                  timeline.length
+                    ? "Muted signers are hidden. Show muted lines or unmute a signer to restore them."
+                    : "Try lowering the start block, removing the author filter, or double-checking the contract address."
+                }
               />
             ) : null}
 
@@ -1060,14 +1116,17 @@ export default function App() {
                 ? Array.from({ length: 3 }).map((_, i) => (
                     <FeedSkeleton key={i} />
                   ))
-                : shownTimeline.map((item) => (
+                : visibleTimeline.map((item) => (
                     <FeedRow
                       key={item.id}
                       item={item}
                       explorer={network.explorer}
                       isTracked={trackedSet.has(item.author.toLowerCase())}
+                      isMuted={mutedSet.has(item.author.toLowerCase())}
                       onTrack={trackSigner}
                       onForget={forgetSigner}
+                      onMute={muteSigner}
+                      onUnmute={unmuteSigner}
                       onAnswer={answerLine}
                       onEcho={echoLine}
                     />
@@ -1114,6 +1173,53 @@ export default function App() {
                 hint="Scan the wire or track an address to build a sigcard roster."
               />
             )}
+          </Panel>
+        </section>
+
+        {/* ----------------------------- SAFETY ------------------------------ */}
+        <section id="safety" className="safety">
+          <Panel
+            label="SAFETY"
+            meta="Local-only mute controls"
+            tone={mutedSigners.length ? "warn" : "good"}
+            actions={
+              <Button
+                variant={showMuted ? "tonal" : "ghost"}
+                onClick={() => setShowMuted((current) => !current)}
+              >
+                {showMuted ? "hide muted" : "show muted"}
+              </Button>
+            }
+          >
+            <div className="safety__body">
+              <p>
+                Muting is local to this browser. It hides matching signer
+                addresses from your wire without changing the contract or anyone
+                else&apos;s view.
+              </p>
+              <div className="tracked-strip" aria-label="Muted signers">
+                <span className="tracked-strip__label">
+                  muted {mutedSigners.length}
+                </span>
+                {mutedSigners.length ? (
+                  mutedSigners.map((signer) => (
+                    <button
+                      type="button"
+                      className="tracked-pill tracked-pill--warn"
+                      key={signer}
+                      onClick={() => unmuteSigner(signer)}
+                      title="Unmute signer"
+                    >
+                      {shorten(signer)} ×
+                    </button>
+                  ))
+                ) : (
+                  <span className="tracked-strip__empty">
+                    Mute a signer from any visible line.
+                  </span>
+                )}
+              </div>
+            </div>
           </Panel>
         </section>
 
@@ -1678,21 +1784,33 @@ function FeedRow({
   item,
   explorer,
   isTracked,
+  isMuted,
   onTrack,
   onForget,
+  onMute,
+  onUnmute,
   onAnswer,
   onEcho,
 }: {
   item: TimelineItem;
   explorer: string;
   isTracked: boolean;
+  isMuted: boolean;
   onTrack: (address: string) => void;
   onForget: (address: string) => void;
+  onMute: (address: string) => void;
+  onUnmute: (address: string) => void;
   onAnswer: (item: TimelineItem) => void;
   onEcho: (item: TimelineItem) => void;
 }) {
   return (
-    <article id={lineId(item)} className="feed-row" role="listitem">
+    <article
+      id={lineId(item)}
+      className={["feed-row", isMuted ? "feed-row--muted" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      role="listitem"
+    >
       <div className="feed-row__meta">
         <time className="feed-row__time" title={formatTime(item.createdAt)}>
           T-{formatRelative(item.createdAt)}
@@ -1728,6 +1846,13 @@ function FeedRow({
           onClick={() => (isTracked ? onForget(item.author) : onTrack(item.author))}
         >
           {isTracked ? "tracked" : "track"}
+        </button>
+        <button
+          type="button"
+          className="feed-row__track feed-row__track--warn"
+          onClick={() => (isMuted ? onUnmute(item.author) : onMute(item.author))}
+        >
+          {isMuted ? "muted" : "mute"}
         </button>
         <span className="feed-row__sep" aria-hidden="true">
           ░

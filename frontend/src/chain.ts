@@ -248,6 +248,8 @@ export function readSavedSettings(): {
   imageUploadEndpoint?: string;
   scanScope?: string;
   trackedSigners?: string[];
+  mutedSigners?: string[];
+  showMuted?: boolean;
 } {
   try {
     const parsed = JSON.parse(
@@ -262,6 +264,8 @@ export function readSavedSettings(): {
       imageUploadEndpoint: string;
       scanScope: string;
       trackedSigners: string[];
+      mutedSigners: string[];
+      showMuted: boolean;
     }>;
     const networkKey =
       parsed.networkKey && NETWORKS[parsed.networkKey]
@@ -288,6 +292,8 @@ export function readSavedSettings(): {
       trackedSigners: Array.isArray(parsed.trackedSigners)
         ? parsed.trackedSigners
         : [],
+      mutedSigners: Array.isArray(parsed.mutedSigners) ? parsed.mutedSigners : [],
+      showMuted: Boolean(parsed.showMuted),
     };
   } catch {
     return {
@@ -300,6 +306,8 @@ export function readSavedSettings(): {
       rpcUrl: DEFAULT_RPC,
       fromBlock: DEFAULT_FROM_BLOCK,
       trackedSigners: [],
+      mutedSigners: [],
+      showMuted: false,
     };
   }
 }
