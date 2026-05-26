@@ -84,6 +84,190 @@ def _render_base_error(error):
     click.echo("✗ Base error: {0}".format(error), err=True)
 
 
+def _timeline_sources(conf, source):
+    if not source:
+        return conf.following
+
+    source_obj = conf.get_source_by_nick(source)
+    if not source_obj and (is_base_url(source) or is_base_address(source)):
+        try:
+            source_obj = _source_from_base_input(conf, source)
+        except BaseConfigurationError:
+            source_obj = None
+
+    if not source_obj:
+        logger.debug("Not following {0}, trying as URL".format(source))
+        source_obj = Source(source, source)
+
+    return [source_obj]
+
+
+def _cached_tweets_for_sources(cache, http_sources):
+    return list(chain.from_iterable(cache.get_tweets(source.url) for source in http_sources))
+
+
+def _fetch_http_timeline_tweets(conf, http_sources, limit, timeout, cache_enabled, force_update):
+    if not http_sources:
+        return []
+
+    if not cache_enabled:
+        return get_remote_tweets(http_sources, limit, timeout)
+
+    try:
+        with Cache.discover(update_interval=conf.timeline_update_interval) as cache:
+            should_update = force_update or not cache.is_valid
+            if should_update:
+                return get_remote_tweets(http_sources, limit, timeout, cache)
+
+            logger.debug("Multiple calls to 'timeline' within {0} seconds. Skipping update".format(
+                cache.update_interval))
+            return _cached_tweets_for_sources(cache, http_sources)
+    except OSError as e:
+        logger.debug(e)
+        return get_remote_tweets(http_sources, limit, timeout)
+
+    return []
+
+
+def _fetch_base_timeline_tweets(conf, base_sources, limit, timeout, from_block):
+    if not base_sources:
+        return []
+
+    try:
+        return get_base_tweets(
+            base_sources,
+            conf.base_contract,
+            network=conf.base_network,
+            rpc_url=conf.base_rpc_url,
+            from_block=_base_from_block(conf, from_block),
+            timeout=timeout,
+            limit=limit,
+        )
+    except BaseChainError as e:
+        _render_base_error(e)
+        return []
+
+
+def _fetch_local_timeline_tweets(conf, twtfile, limit, source_filter):
+    if not twtfile or source_filter:
+        return []
+
+    source = Source(conf.nick, conf.twturl, file=twtfile)
+    return get_local_tweets(source, limit)
+
+
+def _collect_timeline_tweets(conf, sources, limit, timeout, cache_enabled, force_update,
+                             from_block, twtfile, source_filter):
+    http_sources, base_sources = _split_sources_by_transport(sources)
+    tweets = []
+    tweets.extend(_fetch_http_timeline_tweets(
+        conf, http_sources, limit, timeout, cache_enabled, force_update))
+    tweets.extend(_fetch_base_timeline_tweets(conf, base_sources, limit, timeout, from_block))
+    tweets.extend(_fetch_local_timeline_tweets(conf, twtfile, limit, source_filter))
+    return tweets
+
+
+def _render_timeline(tweets, sorting, limit, pager, porcelain):
+    if not tweets:
+        return
+
+    tweets = sort_and_truncate_tweets(tweets, sorting, limit)
+    if pager:
+        click.echo_via_pager(style_timeline(tweets, porcelain))
+    else:
+        click.echo(style_timeline(tweets, porcelain))
+
+
+def _normalize_follow_url(url):
+    if not (is_base_url(url) or is_base_address(url)):
+        return url
+
+    try:
+        return to_base_url(url)
+    except BaseConfigurationError as e:
+        raise click.BadParameter(str(e), param_hint="url")
+
+
+def _confirm_source_not_followed(source, sources):
+    if source.nick in (existing_source.nick for existing_source in sources):
+        click.confirm("➤ You’re already following {0}. Overwrite?".format(
+            click.style(source.nick, bold=True)), default=False, abort=True)
+
+
+def _confirm_remote_source_available(source):
+    if source.is_base:
+        return
+
+    _, status = (get_remote_status([source]))[0]
+    if not status or status.status_code != 200:
+        click.confirm("➤ The feed of {0} at {1} is not available. Follow anyway?".format(
+            click.style(source.nick, bold=True),
+            click.style(source.url, bold=True)), default=False, abort=True)
+
+
+def _confirm_follow_source(source, sources, force):
+    if force:
+        return
+
+    _confirm_source_not_followed(source, sources)
+    _confirm_remote_source_available(source)
+
+
+def _is_publishing_base_profile(nick, twturl):
+    return nick is not None or twturl is not None
+
+
+def _base_profile_twturl(conf, twturl):
+    if twturl is not None:
+        return twturl
+
+    if not conf.twturl:
+        raise click.BadParameter(
+            "Base profile twturl is required when [twtxt] twturl is unset.",
+            param_hint="--twturl",
+        )
+    return conf.twturl
+
+
+def _publish_base_profile(conf, options, private_key_env, timeout, yes, nick, twturl, account):
+    if account:
+        raise click.BadArgumentUsage("Do not pass an account when publishing your own profile.")
+
+    _confirm_mainnet(options["network"], yes)
+    result = set_profile(
+        nick or conf.nick,
+        _base_profile_twturl(conf, twturl),
+        options["contract_address"],
+        network=options["network"],
+        rpc_url=options["rpc_url"],
+        private_key_env=private_key_env,
+        timeout=timeout or 120,
+    )
+    click.echo("✓ Published Base profile: {0}".format(result["tx_hash"]))
+
+
+def _render_base_profile(account, profile):
+    if profile["updated_at"] == 0:
+        click.echo("✗ No Base profile for {0}.".format(normalize_address(account)))
+        return
+
+    click.echo("{0}\t{1}\t{2}".format(profile["nick"], profile["twturl"], profile["updated_at"]))
+
+
+def _inspect_base_profile(conf, options, timeout, account):
+    if not account:
+        raise click.BadArgumentUsage("Specify an account to inspect, or use --nick/--twturl to publish.")
+
+    profile = get_profile(
+        account,
+        options["contract_address"],
+        network=options["network"],
+        rpc_url=options["rpc_url"],
+        timeout=timeout or conf.timeout,
+    )
+    _render_base_profile(account, profile)
+
+
 @click.group()
 @click.option("--config", "-c",
               type=click.Path(exists=True, file_okay=True, readable=True, writable=True, resolve_path=True),
@@ -178,67 +362,20 @@ def tweet(ctx, created_at, twtfile, text):
 @click.pass_context
 def timeline(ctx, pager, limit, twtfile, sorting, timeout, porcelain, source, cache, force_update, from_block):
     """Retrieve your personal timeline."""
-    if source:
-        source_obj = ctx.obj["conf"].get_source_by_nick(source)
-        if not source_obj and (is_base_url(source) or is_base_address(source)):
-            try:
-                source_obj = _source_from_base_input(ctx.obj["conf"], source)
-            except BaseConfigurationError:
-                source_obj = None
-        if not source_obj:
-            logger.debug("Not following {0}, trying as URL".format(source))
-            source_obj = Source(source, source)
-        sources = [source_obj]
-    else:
-        sources = ctx.obj["conf"].following
-
-    http_sources, base_sources = _split_sources_by_transport(sources)
-    tweets = []
-
-    if cache and http_sources:
-        try:
-            with Cache.discover(update_interval=ctx.obj["conf"].timeline_update_interval) as cache:
-                force_update = force_update or not cache.is_valid
-                if force_update:
-                    tweets = get_remote_tweets(http_sources, limit, timeout, cache)
-                else:
-                    logger.debug("Multiple calls to 'timeline' within {0} seconds. Skipping update".format(
-                        cache.update_interval))
-                    # Behold, almighty list comprehensions! (I might have gone overboard here…)
-                    tweets = list(chain.from_iterable([cache.get_tweets(source.url) for source in http_sources]))
-        except OSError as e:
-            logger.debug(e)
-            tweets = get_remote_tweets(http_sources, limit, timeout)
-    elif http_sources:
-        tweets = get_remote_tweets(http_sources, limit, timeout)
-
-    if base_sources:
-        try:
-            tweets.extend(get_base_tweets(
-                base_sources,
-                ctx.obj["conf"].base_contract,
-                network=ctx.obj["conf"].base_network,
-                rpc_url=ctx.obj["conf"].base_rpc_url,
-                from_block=_base_from_block(ctx.obj["conf"], from_block),
-                timeout=timeout,
-                limit=limit,
-            ))
-        except BaseChainError as e:
-            _render_base_error(e)
-
-    if twtfile and not source:
-        source = Source(ctx.obj["conf"].nick, ctx.obj["conf"].twturl, file=twtfile)
-        tweets.extend(get_local_tweets(source, limit))
-
-    if not tweets:
-        return
-
-    tweets = sort_and_truncate_tweets(tweets, sorting, limit)
-
-    if pager:
-        click.echo_via_pager(style_timeline(tweets, porcelain))
-    else:
-        click.echo(style_timeline(tweets, porcelain))
+    conf = ctx.obj["conf"]
+    sources = _timeline_sources(conf, source)
+    tweets = _collect_timeline_tweets(
+        conf,
+        sources,
+        limit,
+        timeout,
+        cache,
+        force_update,
+        from_block,
+        twtfile,
+        source,
+    )
+    _render_timeline(tweets, sorting, limit, pager, porcelain)
 
 
 @cli.command()
@@ -310,28 +447,11 @@ def following(ctx, check, timeout, porcelain):
 @click.pass_context
 def follow(ctx, nick, url, force):
     """Add a new source to your followings."""
-    if is_base_url(url) or is_base_address(url):
-        try:
-            url = to_base_url(url)
-        except BaseConfigurationError as e:
-            raise click.BadParameter(str(e), param_hint="url")
+    conf = ctx.obj["conf"]
+    source = Source(nick, _normalize_follow_url(url))
 
-    source = Source(nick, url)
-    sources = ctx.obj['conf'].following
-
-    if not force:
-        if source.nick in (source.nick for source in sources):
-            click.confirm("➤ You’re already following {0}. Overwrite?".format(
-                click.style(source.nick, bold=True)), default=False, abort=True)
-
-        if not source.is_base:
-            _, status = (get_remote_status([source]))[0]
-            if not status or status.status_code != 200:
-                click.confirm("➤ The feed of {0} at {1} is not available. Follow anyway?".format(
-                    click.style(source.nick, bold=True),
-                    click.style(source.url, bold=True)), default=False, abort=True)
-
-    ctx.obj['conf'].add_source(source)
+    _confirm_follow_source(source, conf.following, force)
+    conf.add_source(source)
     click.echo("✓ You’re now following {0}.".format(
         click.style(source.nick, bold=True)))
 
@@ -434,47 +554,14 @@ def base_profile(ctx, network, rpc_url, contract, private_key_env, timeout, yes,
     options = _base_options(conf, network, rpc_url, contract)
 
     try:
-        if nick is not None or twturl is not None:
-            if account:
-                raise click.BadArgumentUsage("Do not pass an account when publishing your own profile.")
-            _confirm_mainnet(options["network"], yes)
-            nick = nick or conf.nick
-            if twturl is None and not conf.twturl:
-                raise click.BadParameter(
-                    "Base profile twturl is required when [twtxt] twturl is unset.",
-                    param_hint="--twturl",
-                )
-            twturl = twturl if twturl is not None else conf.twturl
-            result = set_profile(
-                nick,
-                twturl,
-                options["contract_address"],
-                network=options["network"],
-                rpc_url=options["rpc_url"],
-                private_key_env=private_key_env,
-                timeout=timeout or 120,
+        if _is_publishing_base_profile(nick, twturl):
+            return _publish_base_profile(
+                conf, options, private_key_env, timeout, yes, nick, twturl, account
             )
-            click.echo("✓ Published Base profile: {0}".format(result["tx_hash"]))
-            return
-
-        if not account:
-            raise click.BadArgumentUsage("Specify an account to inspect, or use --nick/--twturl to publish.")
-
-        profile = get_profile(
-            account,
-            options["contract_address"],
-            network=options["network"],
-            rpc_url=options["rpc_url"],
-            timeout=timeout or conf.timeout,
-        )
+        return _inspect_base_profile(conf, options, timeout, account)
     except BaseChainError as e:
         _render_base_error(e)
         sys.exit(1)
-
-    if profile["updated_at"] == 0:
-        click.echo("✗ No Base profile for {0}.".format(normalize_address(account)))
-        return
-    click.echo("{0}\t{1}\t{2}".format(profile["nick"], profile["twturl"], profile["updated_at"]))
 
 
 @cli.command("base-timeline")
