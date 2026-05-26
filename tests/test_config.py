@@ -75,6 +75,10 @@ def test_defaults():
     assert empty_conf.timeline_update_interval == 10
     assert empty_conf.timeout == 5.0
     assert empty_conf.sorting == "descending"
+    assert empty_conf.base_network == "base-sepolia"
+    assert empty_conf.base_rpc_url is None
+    assert empty_conf.base_contract is None
+    assert empty_conf.base_from_block == 0
     assert empty_conf.post_tweet_hook is None
     assert empty_conf.pre_tweet_hook is None
 
@@ -191,6 +195,13 @@ def test_build_default_map():
             "sorting": empty_conf.sorting,
             "porcelain": empty_conf.porcelain,
             "update_interval": empty_conf.timeline_update_interval,
+        },
+        "base-timeline": {
+            "pager": empty_conf.use_pager,
+            "limit": empty_conf.limit_timeline,
+            "sorting": empty_conf.sorting,
+            "porcelain": empty_conf.porcelain,
+            "timeout": empty_conf.timeout,
         }
     }
 

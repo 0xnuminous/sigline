@@ -100,3 +100,7 @@ class Source:
         self.nick = nick.lower()
         self.url = url
         self.file = file
+
+    @property
+    def is_base(self):
+        return bool(self.url and self.url.lower().startswith("base://"))

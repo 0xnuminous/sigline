@@ -12,3 +12,10 @@ venv
 htmlcov
 docs/_build
 *.swp
+.venv/
+node_modules/
+out/
+cache/
+broadcast/
+.playwright-cli/
+output/

@@ -5,16 +5,20 @@
 all: test docs
 
 test:
-	@echo "---> running tests using tox"
-	@python3 -m tox
+	@echo "---> running Python tests"
+	@uv run pytest
+	@echo "---> running contract tests"
+	@forge test
+	@echo "---> building frontend"
+	@npm run build
 
 pytest:
 	@echo "---> running tests directly"
-	@py.test --tb=short -v --cov twtxt/ tests/
+	@uv run pytest --tb=short -v --cov twtxt/ tests/
 
 coverage:
 	@echo "---> building coverage report"
-	@coverage html
+	@uv run coverage html
 
 docs:
 	@echo "---> generating sphinx documentation"
@@ -22,9 +26,8 @@ docs:
 
 publish:
 	@echo "---> uploading to PyPI"
-	@python3 setup.py sdist bdist_wheel
-	@twine upload dist/*
-	@rm -fr build dist .egg
+	@uv build
+	@uv publish
 
 authors:
 	@git log --format="%aN <%aE>" | sort -f | uniq

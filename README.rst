@@ -17,12 +17,24 @@ Features
 - A beautiful command-line interface thanks to click.
 - Asynchronous HTTP requests thanks to asyncio/aiohttp and Python 3.
 - Integrates well with existing tools (scp, cut, echo, date, etc.) and your shell.
+- Optional Base-chain publishing and timeline reads via an append-only smart contract event log.
 - Don’t like the official client? Tweet using ``echo -e "`date +%FT%T%:z`\tHello world!" >> twtxt.txt``!
 
 Documentation
 -------------
 
 Check out the full documentation at: http://twtxt.readthedocs.org/en/latest/
+
+Frontend
+--------
+
+The Base-chain port includes a Vite/React frontend for wallet-based posting,
+profile publishing, and event timeline reads:
+
+.. code-block:: console
+
+    $ npm install
+    $ npm run dev
 
 Community
 ---------

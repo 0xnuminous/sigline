@@ -22,6 +22,7 @@ User Guide
    user/quickstart
    user/usage
    user/configuration
+   user/base_chain
    user/twtxtfile
    user/registry
    user/discoverability

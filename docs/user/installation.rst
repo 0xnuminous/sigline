@@ -3,32 +3,28 @@
 Installation
 ============
 
-The following sections describe how to install twtxt in different ways on your machine. Currently the we support Windows, Mac OS X and Linux via pip_.
+twtxt is a Python application. This repository uses uv_ for Python dependency
+management, virtual environments, command execution, builds, and publishing.
 
 **Requirements**:
 
-- Python_ >= **3.4.1**
-- Recent version of pip_
+- Python_ >= **3.10**
+- uv_
 
 Release version
 ---------------
 
-Install twtxt using pip_:
+Install the released command-line application with uv:
 
 .. code-block:: console
 
-    $ pip3 install twtxt
+    $ uv tool install twtxt
 
-.. note::
+Run it:
 
-    Instead of installing the package globally (as root), you may want to install this package locally by passing ``--user`` to pip,
-    make sure that you append ``~/.local/bin/`` to your ``$PATH``. You may also install it using ``pipx`` with ``pipx install twtxt``. Or use ``pyvenv`` and run ``twtxt`` from within a virtualenv.
+.. code-block:: console
 
-
-Packages exist for the following systems:
-
-- `Arch Linux (AUR) <https://aur.archlinux.org/packages/twtxt/>`_
-- `Mac OS X (homebrew) <http://braumeister.org/formula/twtxt>`_
+    $ twtxt --help
 
 Development version
 -------------------
@@ -38,27 +34,28 @@ Clone the git_ repository:
 .. code-block:: console
 
     $ git clone https://github.com/buckket/twtxt.git
+    $ cd twtxt
 
-We recommend you to develop inside a virtualenv:
-
-.. code-block:: console
-
-    $ pyvenv env
-        ...
-    $ source env/bin/activate
-
-Install the package via pip_ in developer mode:
+Install the project and development dependencies:
 
 .. code-block:: console
 
-    $ pip3 install -e twtxt/[dev]
+    $ uv sync --dev
 
-.. note::
+Run the Python tests:
 
-    Appending ``[dev]`` to the package name or target location will also install the packages required for testing twtxt,
-    by making use of `setuptool’s extra <https://pythonhosted.org/setuptools/setuptools.html#declaring-extras-optional-features-with-their-own-dependencies>`_ functionality.
+.. code-block:: console
 
+    $ uv run pytest
+
+The Base-chain contract and frontend use the Node.js and Foundry toolchains:
+
+.. code-block:: console
+
+    $ npm install
+    $ forge test
+    $ npm run build
 
 .. _Python: https://www.python.org/
-.. _pip: http://pip-installer.org/
+.. _uv: https://docs.astral.sh/uv/
 .. _git: https://git-scm.com/

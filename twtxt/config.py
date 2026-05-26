@@ -184,6 +184,22 @@ class Config:
         return Source(self.nick, self.twturl)
 
     @property
+    def base_network(self):
+        return self.cfg.get("base", "network", fallback="base-sepolia")
+
+    @property
+    def base_rpc_url(self):
+        return self.cfg.get("base", "rpc_url", fallback=None)
+
+    @property
+    def base_contract(self):
+        return self.cfg.get("base", "contract", fallback=None)
+
+    @property
+    def base_from_block(self):
+        return self.cfg.getint("base", "from_block", fallback=0)
+
+    @property
     def pre_tweet_hook(self):
         return self.cfg.get("twtxt", "pre_tweet_hook", fallback=None)
 
@@ -248,6 +264,13 @@ class Config:
                 "sorting": self.sorting,
                 "porcelain": self.porcelain,
                 "update_interval": self.timeline_update_interval,
+            },
+            "base-timeline": {
+                "pager": self.use_pager,
+                "limit": self.limit_timeline,
+                "sorting": self.sorting,
+                "porcelain": self.porcelain,
+                "timeout": self.timeout,
             }
         }
         return default_map

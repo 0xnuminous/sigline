@@ -35,6 +35,13 @@ Here’s an example ``conf`` file, showing every currently supported option:
     [following]
     bob = https://example.org/bob.txt
     alice = https://example.org/alice.txt
+    carol = base://0x0000000000000000000000000000000000000001
+
+    [base]
+    network = base-sepolia
+    rpc_url = https://sepolia.base.org
+    contract = 0x0000000000000000000000000000000000000000
+    from_block = 0
 
 [twtxt]
 -------
@@ -82,3 +89,20 @@ Here’s an example ``conf`` file, showing every currently supported option:
 [followings]
 ------------
 This section holds all your followings as nick, URL pairs. You can edit this section manually or use the ``follow``/``unfollow`` commands of twtxt for greater comfort.
+
+Base-chain accounts can be followed with a ``base://`` URL. Standard ``twtxt timeline`` includes those accounts when the ``[base]`` section has a contract address.
+
+[base]
+------
+
++-------------+-------+--------------+---------------------------------------------------+
+| Option:     | Type: | Default:     | Help:                                             |
++=============+=======+==============+===================================================+
+| network     | TEXT  | base-sepolia | Base network, either ``base-sepolia`` or ``base`` |
++-------------+-------+--------------+---------------------------------------------------+
+| rpc_url     | TEXT  |              | JSON-RPC endpoint; use a provider for production  |
++-------------+-------+--------------+---------------------------------------------------+
+| contract    | TEXT  |              | deployed ``BaseTwtxt`` contract address           |
++-------------+-------+--------------+---------------------------------------------------+
+| from_block  | INT   | 0            | first block scanned for Base-chain events         |
++-------------+-------+--------------+---------------------------------------------------+

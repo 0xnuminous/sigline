@@ -26,27 +26,31 @@ We are very happy to receive Pull Requests! Please consider:
 
 ### Testing
 
-You need to make sure *tox* and *pytest* are installed in you testing environment:
+Install the Python development dependencies with uv:
 
 ```bash
-pyhon3 -m pip install tox pytest
+uv sync --dev
 ```
 
-To test the twtxt source code against all supported Python versions you should use *make test*:
+To test the full source tree:
 
 ```bash
 cd ~/work/twtxt
 make test
 ```
 
-However, if you want to test your code manually in a certain environment use *virtualenv*:
+To run only the Python tests:
 
-```
+```bash
 cd ~/work/twtxt
-virtualenv env -p python3.4
-source env/bin/activate
-python -m pip install --editable .
-make pytest
+uv run pytest
+```
+
+The Base-chain contract and frontend checks are:
+
+```bash
+forge test
+npm run build
 ```
 
 ### Documentation

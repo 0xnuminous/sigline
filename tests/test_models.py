@@ -8,6 +8,11 @@ def test_source():
     source = Source("foo", "bar")
     assert source.nick == "foo"
     assert source.url == "bar"
+    assert source.is_base is False
+
+    base_source = Source("Foo", "base://0x0000000000000000000000000000000000000001")
+    assert base_source.nick == "foo"
+    assert base_source.is_base is True
 
     with pytest.raises(TypeError):
         Source()
