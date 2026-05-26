@@ -18,6 +18,9 @@ The contract is deliberately small:
 - Accounts can only post for themselves and update their own profile.
 - Posts are capped at 140 bytes on-chain, matching original Twitter-length
   posts for ASCII text. Nick and URL byte lengths are also bounded.
+- Images are not stored on-chain. Posts may include an optional image URI and
+  SHA-256 hash so clients can retrieve the image from IPFS, Arweave, or another
+  content-addressed store and verify the bytes.
 - The contract rejects native-token transfers and does not implement token
   rescue or withdrawal flows.
 - The owner can pause and unpause writes, and ownership transfer is two-step.
@@ -120,3 +123,39 @@ Optional build-time defaults:
     $ export VITE_SIGLINE_CONTRACT=0xYourDeployedContract
     $ export VITE_BASE_RPC_URL=https://sepolia.base.org
     $ export VITE_BASE_FROM_BLOCK=12345678
+
+Image uploads
+~~~~~~~~~~~~~
+
+The frontend can attach one optional image to a post. It never embeds provider
+API secrets in the browser.
+
+Two upload modes are supported:
+
+- ``local-ipfs`` posts directly to a local Kubo/IPFS API, defaulting to
+  ``http://127.0.0.1:5001``. The local node must allow browser CORS for the
+  app origin.
+- ``endpoint`` posts the image to a trusted upload proxy. The proxy can pin to
+  IPFS, upload to Arweave/Irys, or use another decentralized storage provider,
+  then return JSON:
+
+.. code-block:: json
+
+    {
+      "uri": "ipfs://bafy...",
+      "gatewayUrl": "https://ipfs.io/ipfs/bafy...",
+      "hash": "0x...",
+      "bytes": 12345,
+      "mime": "image/png"
+    }
+
+Images are limited to PNG, JPG, GIF, or WebP under 1 MB. SVG is intentionally
+rejected because it can carry active content in some rendering contexts.
+
+Optional upload defaults:
+
+.. code-block:: console
+
+    $ export VITE_IMAGE_UPLOAD_MODE=local-ipfs
+    $ export VITE_IMAGE_UPLOAD_ENDPOINT=http://127.0.0.1:5001
+    $ export VITE_IPFS_GATEWAY=https://ipfs.io/ipfs/{cid}

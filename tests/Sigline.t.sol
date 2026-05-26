@@ -13,7 +13,7 @@ interface Vm {
 
 contract SiglineActor {
     function post(Sigline registry, string calldata text) external returns (uint256, bytes32) {
-        return registry.post(text);
+        return registry.post(text, "", bytes32(0));
     }
 
     function setProfile(Sigline registry, string calldata nick, string calldata twtUrl) external {
@@ -36,7 +36,13 @@ contract SiglineTest {
     SiglineActor private actor;
 
     event PostPosted(
-        address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text
+        address indexed author,
+        uint256 indexed index,
+        uint64 indexed createdAt,
+        bytes32 contentHash,
+        string text,
+        string imageUri,
+        bytes32 imageHash
     );
     event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt);
     event ProfileCleared(address indexed account);
@@ -49,13 +55,14 @@ contract SiglineTest {
     function testPostIncrementsOnlyCaller() public {
         string memory text = "hello from base";
         uint64 createdAt = uint64(block.timestamp);
-        bytes32 expectedHash =
-            keccak256(abi.encode(block.chainid, address(registry), address(this), uint256(0), createdAt, text));
+        bytes32 expectedHash = keccak256(
+            abi.encode(block.chainid, address(registry), address(this), uint256(0), createdAt, text, "", bytes32(0))
+        );
 
         vm.expectEmit(true, true, true, true, address(registry));
-        emit PostPosted(address(this), 0, createdAt, expectedHash, text);
+        emit PostPosted(address(this), 0, createdAt, expectedHash, text, "", bytes32(0));
 
-        (uint256 firstIndex, bytes32 firstHash) = registry.post(text);
+        (uint256 firstIndex, bytes32 firstHash) = registry.post(text, "", bytes32(0));
         assert(firstIndex == 0);
         assert(firstHash == expectedHash);
         assert(registry.postCount(address(this)) == 1);
@@ -68,7 +75,7 @@ contract SiglineTest {
 
     function testRejectsEmptyPost() public {
         vm.expectRevert(Sigline.EmptyPost.selector);
-        registry.post("");
+        registry.post("", "", bytes32(0));
     }
 
     function testRejectsTooLongPost() public {
@@ -78,7 +85,42 @@ contract SiglineTest {
         }
 
         vm.expectRevert(abi.encodeWithSelector(Sigline.PostTooLong.selector, text.length, registry.MAX_POST_BYTES()));
-        registry.post(string(text));
+        registry.post(string(text), "", bytes32(0));
+    }
+
+    function testPostCanIncludeImageUriAndHash() public {
+        string memory text = "image";
+        string memory imageUri = "ipfs://bafkreic6encph7qzqg3qg6xv4vl23s7lux7dxry4g6e5fli7dgc7alnlti";
+        bytes32 imageHash = sha256("image-bytes");
+        uint64 createdAt = uint64(block.timestamp);
+        bytes32 expectedHash = keccak256(
+            abi.encode(
+                block.chainid, address(registry), address(this), uint256(0), createdAt, text, imageUri, imageHash
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, address(registry));
+        emit PostPosted(address(this), 0, createdAt, expectedHash, text, imageUri, imageHash);
+
+        (uint256 index, bytes32 contentHash) = registry.post(text, imageUri, imageHash);
+        assert(index == 0);
+        assert(contentHash == expectedHash);
+    }
+
+    function testRejectsImageWithoutHash() public {
+        vm.expectRevert(Sigline.ImageHashRequired.selector);
+        registry.post("image", "ipfs://cid", bytes32(0));
+    }
+
+    function testRejectsTooLongImageUri() public {
+        string memory uri =
+            "ipfs://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        bytes32 imageHash = sha256("image-bytes");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Sigline.ImageUriTooLong.selector, bytes(uri).length, registry.MAX_IMAGE_URI_BYTES())
+        );
+        registry.post("image", uri, imageHash);
     }
 
     function testProfileIsOwnedBySender() public {
@@ -139,13 +181,13 @@ contract SiglineTest {
         assert(registry.paused());
 
         vm.expectRevert();
-        registry.post("paused");
+        registry.post("paused", "", bytes32(0));
 
         vm.expectRevert();
         registry.setProfile("alice", "");
 
         registry.unpause();
-        registry.post("unpaused");
+        registry.post("unpaused", "", bytes32(0));
         assert(registry.postCount(address(this)) == 1);
     }
 

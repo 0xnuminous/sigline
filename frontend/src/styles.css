@@ -1402,6 +1402,78 @@ body::after {
     border-color: var(--cyan);
 }
 
+/* image upload -------------------------------------------------------------- */
+
+.image-upload {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.image-upload__drop {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-2);
+    min-height: 42px;
+    border: 1px dashed var(--line-strong);
+    background: rgba(11, 19, 34, 0.55);
+    color: var(--text-hot);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 11px;
+}
+
+.image-upload__drop:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+}
+
+.image-upload__drop input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.image-upload__route {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+    gap: var(--s-3);
+}
+
+.image-upload__preview {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: var(--s-3);
+    align-items: center;
+    padding: var(--s-3);
+    border: 1px solid var(--line);
+    background: rgba(0, 2, 4, 0.65);
+}
+
+.image-upload__preview img {
+    width: 96px;
+    height: 72px;
+    object-fit: cover;
+    border: 1px solid var(--line);
+    background: var(--ink-0);
+}
+
+.image-upload__preview p {
+    margin: 0 0 var(--s-2);
+    color: var(--text-dim);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.image-upload__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+}
+
 /* feed ---------------------------------------------------------------------- */
 
 .feed {
@@ -1442,6 +1514,25 @@ body::after {
     color: var(--text-hot);
     margin: 0;
     overflow-wrap: anywhere;
+}
+.feed-row__image {
+    grid-column: 2;
+    display: block;
+    width: min(420px, 100%);
+    margin-top: var(--s-2);
+    border: 1px solid var(--line);
+    background: var(--ink-0);
+}
+
+.feed-row__image:hover {
+    border-color: var(--cyan);
+}
+
+.feed-row__image img {
+    display: block;
+    width: 100%;
+    max-height: 280px;
+    object-fit: cover;
 }
 .feed-row__foot {
     margin-top: 8px;
@@ -1653,11 +1744,16 @@ body::after {
         gap: 10px;
     }
     .feed-row__text,
+    .feed-row__image,
     .feed-row__foot {
         grid-column: 1;
     }
 
     .receive__bar {
+        grid-template-columns: 1fr;
+    }
+    .image-upload__route,
+    .image-upload__preview {
         grid-template-columns: 1fr;
     }
     .row--2 {

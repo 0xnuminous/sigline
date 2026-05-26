@@ -77,7 +77,11 @@ SIGLINE_ABI = [
         "type": "function",
         "name": "post",
         "stateMutability": "nonpayable",
-        "inputs": [{"name": "text", "type": "string"}],
+        "inputs": [
+            {"name": "text", "type": "string"},
+            {"name": "imageUri", "type": "string"},
+            {"name": "imageHash", "type": "bytes32"},
+        ],
         "outputs": [
             {"name": "index", "type": "uint256"},
             {"name": "contentHash", "type": "bytes32"},
@@ -127,6 +131,8 @@ SIGLINE_ABI = [
             {"indexed": True, "name": "createdAt", "type": "uint64"},
             {"indexed": False, "name": "contentHash", "type": "bytes32"},
             {"indexed": False, "name": "text", "type": "string"},
+            {"indexed": False, "name": "imageUri", "type": "string"},
+            {"indexed": False, "name": "imageHash", "type": "bytes32"},
         ],
     },
 ]
@@ -280,7 +286,7 @@ def publish_tweet(text, contract_address, network=DEFAULT_NETWORK, rpc_url=None,
         private_key_env=private_key_env,
         timeout=timeout,
     )
-    return _send_transaction(w3, cfg, account, contract.functions.post(text), timeout=timeout)
+    return _send_transaction(w3, cfg, account, contract.functions.post(text, "", b"\x00" * 32), timeout=timeout)
 
 
 def set_profile(nick, twturl, contract_address, network=DEFAULT_NETWORK, rpc_url=None,

@@ -10,6 +10,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 /// @dev The contract does not custody native tokens or ERC-20 tokens.
 contract Sigline is Ownable2Step, Pausable {
     uint256 public constant MAX_POST_BYTES = 140;
+    uint256 public constant MAX_IMAGE_URI_BYTES = 256;
     uint256 public constant MAX_NICK_BYTES = 64;
     uint256 public constant MAX_URL_BYTES = 512;
 
@@ -23,13 +24,21 @@ contract Sigline is Ownable2Step, Pausable {
     mapping(address account => Profile profile) private _profiles;
 
     event PostPosted(
-        address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text
+        address indexed author,
+        uint256 indexed index,
+        uint64 indexed createdAt,
+        bytes32 contentHash,
+        string text,
+        string imageUri,
+        bytes32 imageHash
     );
     event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt);
     event ProfileCleared(address indexed account);
 
     error EmptyPost();
     error PostTooLong(uint256 length, uint256 maxLength);
+    error ImageUriTooLong(uint256 length, uint256 maxLength);
+    error ImageHashRequired();
     error EmptyNick();
     error NickTooLong(uint256 length, uint256 maxLength);
     error UrlTooLong(uint256 length, uint256 maxLength);
@@ -38,13 +47,24 @@ contract Sigline is Ownable2Step, Pausable {
 
     constructor(address initialOwner) Ownable(initialOwner) {}
 
-    function post(string calldata text) external whenNotPaused returns (uint256 index, bytes32 contentHash) {
+    function post(string calldata text, string calldata imageUri, bytes32 imageHash)
+        external
+        whenNotPaused
+        returns (uint256 index, bytes32 contentHash)
+    {
         uint256 textLength = bytes(text).length;
-        if (textLength == 0) {
+        uint256 imageUriLength = bytes(imageUri).length;
+        if (textLength == 0 && imageUriLength == 0) {
             revert EmptyPost();
         }
         if (textLength > MAX_POST_BYTES) {
             revert PostTooLong(textLength, MAX_POST_BYTES);
+        }
+        if (imageUriLength > MAX_IMAGE_URI_BYTES) {
+            revert ImageUriTooLong(imageUriLength, MAX_IMAGE_URI_BYTES);
+        }
+        if (imageUriLength > 0 && imageHash == bytes32(0)) {
+            revert ImageHashRequired();
         }
 
         index = _postCounts[msg.sender];
@@ -53,9 +73,11 @@ contract Sigline is Ownable2Step, Pausable {
         }
 
         uint64 createdAt = _timestamp();
-        contentHash = keccak256(abi.encode(block.chainid, address(this), msg.sender, index, createdAt, text));
+        contentHash = keccak256(
+            abi.encode(block.chainid, address(this), msg.sender, index, createdAt, text, imageUri, imageHash)
+        );
 
-        emit PostPosted(msg.sender, index, createdAt, contentHash, text);
+        emit PostPosted(msg.sender, index, createdAt, contentHash, text, imageUri, imageHash);
     }
 
     function setProfile(string calldata nick, string calldata twtUrl) external whenNotPaused {

@@ -29,6 +29,8 @@ export type TimelineItem = {
   createdAt: number;
   contentHash: string;
   text: string;
+  imageUri: string;
+  imageHash: string;
   txHash: string;
   blockNumber: number;
 };
@@ -37,6 +39,9 @@ export type StatusTone = "idle" | "good" | "warn" | "bad";
 export type ContractMap = Record<NetworkKey, string>;
 
 export const MAX_POST_BYTES = 140;
+export const MAX_IMAGE_BYTES = 1_000_000;
+export const MAX_IMAGE_URI_BYTES = 256;
+export const ZERO_HASH = `0x${"0".repeat(64)}`;
 
 export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
   "base-sepolia": {
@@ -62,11 +67,11 @@ export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
 };
 
 export const ABI = [
-  "function post(string text) returns (uint256 index, bytes32 contentHash)",
+  "function post(string text, string imageUri, bytes32 imageHash) returns (uint256 index, bytes32 contentHash)",
   "function setProfile(string nick, string twtUrl)",
   "function profile(address account) view returns (tuple(string nick, string twtUrl, uint64 updatedAt))",
   "function postCount(address account) view returns (uint256)",
-  "event PostPosted(address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text)",
+  "event PostPosted(address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text, string imageUri, bytes32 imageHash)",
   "event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt)",
 ];
 
@@ -91,6 +96,8 @@ export const samplePosts: TimelineItem[] = [
     contentHash:
       "0x58c7f3f1e5cf51e2a3bb5f219b8fd32b3e91e50c092116b12dd58f7d3a410001",
     text: "Posting from a wallet, reading from the contract.",
+    imageUri: "",
+    imageHash: ZERO_HASH,
     txHash:
       "0x8b1db7fdcbfc7f18d46db47f36c8cfcf5d50e78f1a2ce3995c28198f54a01001",
     blockNumber: 1842041,
@@ -103,6 +110,8 @@ export const samplePosts: TimelineItem[] = [
     contentHash:
       "0xc0ffee0000000000000000000000000000000000000000000000000000000001",
     text: "Small feed. Public history. No account required.",
+    imageUri: "",
+    imageHash: ZERO_HASH,
     txHash:
       "0x9f1db7fdcbfc7f18d46db47f36c8cfcf5d50e78f1a2ce3995c28198f54a01002",
     blockNumber: 1841130,
@@ -196,6 +205,8 @@ export function toTimelineItem(event: EventLog): TimelineItem {
     createdAt: Number(args.createdAt),
     contentHash: String(args.contentHash),
     text: String(args.text),
+    imageUri: String(args.imageUri ?? ""),
+    imageHash: String(args.imageHash ?? ZERO_HASH),
     txHash: event.transactionHash,
     blockNumber: event.blockNumber,
   };
@@ -206,6 +217,8 @@ export function readSavedSettings(): {
   contractsByNetwork: ContractMap;
   rpcUrl: string;
   fromBlock: string;
+  imageUploadMode?: string;
+  imageUploadEndpoint?: string;
 } {
   try {
     const parsed = JSON.parse(
@@ -216,6 +229,8 @@ export function readSavedSettings(): {
       contractsByNetwork: ContractMap;
       rpcUrl: string;
       fromBlock: string;
+      imageUploadMode: string;
+      imageUploadEndpoint: string;
     }>;
     const networkKey =
       parsed.networkKey && NETWORKS[parsed.networkKey]
@@ -236,6 +251,8 @@ export function readSavedSettings(): {
       contractsByNetwork,
       rpcUrl: parsed.rpcUrl ?? DEFAULT_RPC,
       fromBlock: parsed.fromBlock ?? DEFAULT_FROM_BLOCK,
+      imageUploadMode: parsed.imageUploadMode,
+      imageUploadEndpoint: parsed.imageUploadEndpoint,
     };
   } catch {
     return {

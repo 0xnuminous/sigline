@@ -21,6 +21,7 @@ Features
 - Integrates well with existing tools (scp, cut, echo, date, etc.) and your shell.
 - Base-chain publishing and timeline reads via an append-only smart contract event log.
 - Wallet-based Vite/React frontend for posting, profile publishing, and feed reads.
+- Optional image attachments via local IPFS or a trusted IPFS/Arweave upload endpoint.
 - Legacy twtxt flat-file workflows are still available through the Python CLI.
 - Don’t like the official client? Tweet using ``echo -e "`date +%FT%T%:z`\tHello world!" >> twtxt.txt``!
 

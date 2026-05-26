@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Cpu,
   Fingerprint,
+  ImagePlus,
   Power,
   Radio,
   RefreshCw,
@@ -69,6 +70,15 @@ import {
   useChainTelemetry,
   useTypewriter,
 } from "./components";
+import {
+  DEFAULT_IMAGE_UPLOAD_ENDPOINT,
+  DEFAULT_IMAGE_UPLOAD_MODE,
+  ImageUploadMode,
+  ImageUploadResult,
+  imageUriToGateway,
+  uploadImage,
+  validateImageFile,
+} from "./uploads";
 
 const ASCII_TITLE = `
  ██████╗  █████╗ ███████╗███████╗   ████████╗██╗    ██╗████████╗██╗  ██╗████████╗
@@ -103,7 +113,19 @@ export default function App() {
   const [hasQueriedTimeline, setHasQueriedTimeline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSealingId, setIsSealingId] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const [imageUpload, setImageUpload] = useState<ImageUploadResult | null>(null);
+  const [imageUploadMode, setImageUploadMode] = useState<ImageUploadMode>(
+    saved.imageUploadMode === "endpoint" || saved.imageUploadMode === "local-ipfs"
+      ? saved.imageUploadMode
+      : DEFAULT_IMAGE_UPLOAD_MODE,
+  );
+  const [imageUploadEndpoint, setImageUploadEndpoint] = useState(
+    saved.imageUploadEndpoint || DEFAULT_IMAGE_UPLOAD_ENDPOINT,
+  );
   const [lastTx, setLastTx] = useState("");
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [balanceRefresh, setBalanceRefresh] = useState(0);
@@ -136,9 +158,29 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ networkKey, contractsByNetwork, rpcUrl, fromBlock }),
+      JSON.stringify({
+        networkKey,
+        contractsByNetwork,
+        rpcUrl,
+        fromBlock,
+        imageUploadMode,
+        imageUploadEndpoint,
+      }),
     );
-  }, [networkKey, contractsByNetwork, rpcUrl, fromBlock]);
+  }, [
+    networkKey,
+    contractsByNetwork,
+    rpcUrl,
+    fromBlock,
+    imageUploadMode,
+    imageUploadEndpoint,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
 
   // Default RPC when switching networks.
   useEffect(() => {
@@ -286,8 +328,8 @@ export default function App() {
       const contract = new Contract(contractAddress, ABI, provider);
       const startBlock = parseBlock(fromBlock);
       const filter = normalizedTarget
-        ? contract.filters.TweetPosted(getAddress(normalizedTarget))
-        : contract.filters.TweetPosted();
+        ? contract.filters.PostPosted(getAddress(normalizedTarget))
+        : contract.filters.PostPosted();
       const events = await contract.queryFilter(filter, startBlock, "latest");
       const parsed = events
         .filter((event): event is EventLog => event instanceof EventLog)
@@ -319,6 +361,63 @@ export default function App() {
     targetAddress,
   ]);
 
+  const clearImage = useCallback(() => {
+    setImageFile(null);
+    setImageUpload(null);
+    setImagePreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
+  }, []);
+
+  const selectImage = useCallback((file: File | null) => {
+    setImageUpload(null);
+    setImageFile(null);
+    setImagePreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
+    if (!file) return;
+    try {
+      validateImageFile(file);
+    } catch (error) {
+      setStatus({
+        tone: "warn",
+        text: error instanceof Error ? error.message : "Image rejected.",
+      });
+      return;
+    }
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    setStatus({
+      tone: "idle",
+      text: "Image ready. It will upload before posting.",
+    });
+  }, []);
+
+  const uploadSelectedImage = useCallback(async () => {
+    if (!imageFile) return null;
+    setIsUploadingImage(true);
+    try {
+      appendLog("idle", `Uploading image via ${imageUploadMode}.`, "image");
+      const uploaded = await uploadImage(
+        imageFile,
+        imageUploadMode,
+        imageUploadEndpoint,
+      );
+      setImageUpload(uploaded);
+      appendLog("good", `Image stored at ${uploaded.uri}.`, "image");
+      return uploaded;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Image upload failed.";
+      setStatus({ tone: "bad", text: msg });
+      appendLog("bad", msg, "image");
+      return null;
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }, [appendLog, imageFile, imageUploadEndpoint, imageUploadMode]);
+
   const publishPost = useCallback(async () => {
     if (!contractReady) {
       setStatus({
@@ -327,7 +426,7 @@ export default function App() {
       });
       return;
     }
-    if (!postText.trim()) {
+    if (!postText.trim() && !imageFile && !imageUpload) {
       setStatus({ tone: "warn", text: "Write something first." });
       return;
     }
@@ -340,10 +439,17 @@ export default function App() {
     }
     try {
       setIsPosting(true);
+      const uploaded = imageUpload || (imageFile ? await uploadSelectedImage() : null);
+      if (imageFile && !uploaded) return;
       appendLog("idle", "Preparing post…", "post");
       await ensureWalletOnNetwork(network);
       const contract = await writableContract(contractAddress, network);
-      const tx = await contract.post(postText.trim());
+      const tx = await contract.post(
+        postText.trim(),
+        uploaded?.uri ?? "",
+        uploaded?.hash ??
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+      );
       setStatus({
         tone: "idle",
         text: "Submitted. Waiting for confirmation…",
@@ -358,6 +464,8 @@ export default function App() {
         "post",
       );
       setPostFlash((n) => n + 1);
+      setPostText("");
+      clearImage();
       setBalanceRefresh((n) => n + 1);
       await loadTimeline();
     } catch (error) {
@@ -369,12 +477,16 @@ export default function App() {
     }
   }, [
     appendLog,
+    clearImage,
     contractAddress,
     contractReady,
+    imageFile,
+    imageUpload,
     loadTimeline,
     network,
     postBytes,
     postText,
+    uploadSelectedImage,
   ]);
 
   const publishProfile = useCallback(async () => {
@@ -780,15 +892,82 @@ export default function App() {
               />
             </Field>
 
+            <Field
+              label="image"
+              hint="Optional. PNG, JPG, GIF, or WebP under 1 MB; uploaded before the post is signed."
+              optional
+            >
+              <div className="image-upload">
+                <label className="image-upload__drop">
+                  <ImagePlus size={16} aria-hidden="true" />
+                  <span>
+                    {imageFile
+                      ? `${imageFile.name} · ${Math.ceil(imageFile.size / 1024)} KB`
+                      : "choose image"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    onChange={(event) =>
+                      selectImage(event.currentTarget.files?.[0] ?? null)
+                    }
+                  />
+                </label>
+                <div className="image-upload__route">
+                  <Select
+                    value={imageUploadMode}
+                    onChange={(event) =>
+                      setImageUploadMode(event.target.value as ImageUploadMode)
+                    }
+                  >
+                    <option value="local-ipfs">local IPFS</option>
+                    <option value="endpoint">upload endpoint</option>
+                  </Select>
+                  <Input
+                    value={imageUploadEndpoint}
+                    placeholder={
+                      imageUploadMode === "local-ipfs"
+                        ? "http://127.0.0.1:5001"
+                        : "https://your-upload-proxy.example/upload"
+                    }
+                    onChange={(event) =>
+                      setImageUploadEndpoint(event.target.value)
+                    }
+                  />
+                </div>
+                {imagePreviewUrl ? (
+                  <div className="image-upload__preview">
+                    <img src={imagePreviewUrl} alt="" />
+                    <div>
+                      <p>{imageUpload ? imageUpload.uri : "not uploaded yet"}</p>
+                      <div className="image-upload__actions">
+                        <Button
+                          variant="ghost"
+                          icon={<ImagePlus size={14} />}
+                          onClick={uploadSelectedImage}
+                          loading={isUploadingImage}
+                        >
+                          upload
+                        </Button>
+                        <Button variant="ghost" onClick={clearImage}>
+                          clear
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </Field>
+
             <div className="actions">
               <Button
                 variant="primary"
                 icon={<Send size={14} />}
                 onClick={publishPost}
-                loading={isPosting}
+                loading={isPosting || isUploadingImage}
                 disabled={!contractReady}
               >
-                {isPosting ? "posting…" : "post"}
+                {isUploadingImage ? "uploading…" : isPosting ? "posting…" : "post"}
               </Button>
               {chainAligned ? (
                 <Button
@@ -1104,6 +1283,21 @@ function FeedRow({ item, explorer }: { item: TimelineItem; explorer: string }) {
         <span className="feed-row__idx">#{item.index.toString()}</span>
       </div>
       <p className="feed-row__text">{item.text}</p>
+      {item.imageUri ? (
+        <a
+          className="feed-row__image"
+          href={imageUriToGateway(item.imageUri)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <img
+            src={imageUriToGateway(item.imageUri)}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        </a>
+      ) : null}
       <div className="feed-row__foot">
         <span className="feed-row__label">from</span>
         <Hex
@@ -1130,6 +1324,17 @@ function FeedRow({ item, explorer }: { item: TimelineItem; explorer: string }) {
         </span>
         <span className="feed-row__label">crc</span>
         <span className="feed-row__crc">{shortHash(item.contentHash)}</span>
+        {item.imageHash &&
+        item.imageHash !==
+          "0x0000000000000000000000000000000000000000000000000000000000000000" ? (
+          <>
+            <span className="feed-row__sep" aria-hidden="true">
+              ░
+            </span>
+            <span className="feed-row__label">img</span>
+            <span className="feed-row__crc">{shortHash(item.imageHash)}</span>
+          </>
+        ) : null}
       </div>
     </article>
   );
