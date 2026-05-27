@@ -297,10 +297,22 @@ def get_base_tweets(sources, contract_address, network=DEFAULT_NETWORK, rpc_url=
         for entry in entries:
             args = entry["args"]
             created_at = datetime.fromtimestamp(args["createdAt"], timezone.utc)
-            tweets.append(Tweet(args["text"], created_at, source))
+            tweets.append(Tweet(_base_event_text(args), created_at, source))
 
     tweets = sorted(tweets, reverse=True)
     return tweets[:limit] if limit else tweets
+
+
+def _base_event_text(args):
+    text = args.get("text") or ""
+    if text:
+        return text
+
+    image_uri = args.get("imageUri") or ""
+    if image_uri:
+        return "[image] {0}".format(image_uri)
+
+    return "[empty Base post]"
 
 
 def publish_tweet(text, contract_address, network=DEFAULT_NETWORK, rpc_url=None,

@@ -26,6 +26,7 @@ import {
   JsonRpcProvider,
   getAddress,
 } from "ethers";
+import type { ContractEventName, Log } from "ethers";
 import {
   ABI,
   ContractMap,
@@ -89,6 +90,9 @@ type SigcardView = Sigcard & {
   visibleCount: number;
   error?: string;
 };
+
+const LOG_CHUNK_SIZE = 10_000;
+const TIMELINE_LIMIT = 40;
 
 const ASCII_TITLE = `
  ██████╗  █████╗ ███████╗███████╗   ████████╗██╗    ██╗████████╗██╗  ██╗████████╗
@@ -601,15 +605,12 @@ export default function App() {
       const filters = signers.length
         ? signers.map((address) => contract.filters.PostPosted(address))
         : [contract.filters.PostPosted()];
-      const eventGroups = await Promise.all(
-        filters.map((filter) => contract.queryFilter(filter, startBlock, "latest")),
-      );
-      const events = eventGroups.flat();
+      const events = await queryPostEvents(provider, contract, filters, startBlock);
       const parsed = events
         .filter((event): event is EventLog => event instanceof EventLog)
         .map((event) => toTimelineItem(event))
         .sort((a, b) => b.createdAt - a.createdAt || Number(b.index - a.index));
-      setTimeline(parsed.slice(0, 40));
+      setTimeline(parsed.slice(0, TIMELINE_LIMIT));
       setHasQueriedTimeline(true);
       const tone: StatusTone = parsed.length ? "good" : "idle";
       const text = parsed.length
@@ -1976,6 +1977,28 @@ function lineId(item: TimelineItem) {
 
 function lineHref(item: TimelineItem) {
   return `#${lineId(item)}`;
+}
+
+async function queryPostEvents(
+  provider: JsonRpcProvider,
+  contract: Contract,
+  filters: ContractEventName[],
+  startBlock: number,
+) {
+  const latestBlock = await provider.getBlockNumber();
+  if (startBlock > latestBlock) return [];
+
+  const events: Array<EventLog | Log> = [];
+  let cursorEnd = latestBlock;
+  while (cursorEnd >= startBlock && events.length < TIMELINE_LIMIT) {
+    const cursorStart = Math.max(startBlock, cursorEnd - LOG_CHUNK_SIZE + 1);
+    const groups = await Promise.all(
+      filters.map((filter) => contract.queryFilter(filter, cursorStart, cursorEnd)),
+    );
+    events.push(...groups.flat());
+    cursorEnd = cursorStart - 1;
+  }
+  return events;
 }
 
 function formatEthShort(value: string) {

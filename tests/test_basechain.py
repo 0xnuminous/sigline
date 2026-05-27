@@ -161,6 +161,37 @@ def test_get_base_tweets_pages_log_reads_from_latest_chunk_first(monkeypatch):
     ]
 
 
+def test_get_base_tweets_allows_image_only_posts(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+    image_uri = "ipfs://bafkreic6encph7qzqg3qg6xv4vl23s7lux7dxry4g6e5fli7dgc7alnlti"
+    source = Source("alice", to_base_url(address))
+    tweet_posted = FakePostPosted(
+        {
+            (0, 10): [
+                {
+                    "args": {
+                        "createdAt": 10,
+                        "text": "",
+                        "imageUri": image_uri,
+                    }
+                }
+            ],
+        }
+    )
+    w3 = FakeWeb3(block_number=10)
+    _patch_base_contract(monkeypatch, w3, FakeContract(tweet_posted=tweet_posted))
+
+    tweets = get_base_tweets(
+        [source],
+        contract_address=address,
+        from_block=0,
+        to_block=10,
+        chunk_size=0,
+    )
+
+    assert [tweet.text for tweet in tweets] == ["[image] {0}".format(image_uri)]
+
+
 def test_get_base_tweets_wraps_rpc_errors(monkeypatch):
     address = "0x0000000000000000000000000000000000000001"
     source = Source("alice", to_base_url(address))
