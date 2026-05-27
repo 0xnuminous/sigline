@@ -91,7 +91,7 @@ type SigcardView = Sigcard & {
   error?: string;
 };
 
-const LOG_CHUNK_SIZE = 10_000;
+const LOG_CHUNK_SIZE = 2_000;
 const TIMELINE_LIMIT = 40;
 
 const ASCII_TITLE = `
@@ -780,12 +780,20 @@ export default function App() {
       setStatus({ tone: "warn", text: "Pick an alias first." });
       return;
     }
+    const nextTwtUrl = twtUrl.trim();
+    if (nextTwtUrl && !safeExternalHref(nextTwtUrl)) {
+      setStatus({
+        tone: "warn",
+        text: "Use an http:// or https:// URL for your twtxt link.",
+      });
+      return;
+    }
     try {
       setIsSealingId(true);
       appendLog("idle", "Preparing identity update…", "identity");
       await ensureWalletOnNetwork(network);
       const contract = await writableContract(contractAddress, network);
-      const tx = await contract.setProfile(nick.trim(), twtUrl.trim());
+      const tx = await contract.setProfile(nick.trim(), nextTwtUrl);
       setStatus({
         tone: "idle",
         text: "Submitted. Waiting for confirmation…",
@@ -1737,6 +1745,7 @@ function SigcardRow({
   const activity =
     card.latestAt > 0 ? `latest T-${formatRelative(card.latestAt)}` : "no visible lines";
   const totalLabel = card.postCount.toLocaleString();
+  const twtHref = safeExternalHref(card.twtUrl);
   return (
     <article className="sigcard-row">
       <div className="sigcard-row__mark" aria-hidden="true">
@@ -1761,10 +1770,10 @@ function SigcardRow({
               <span>sigcard {formatTime(card.updatedAt)}</span>
             </>
           ) : null}
-          {card.twtUrl ? (
+          {twtHref ? (
             <>
               <span aria-hidden="true">░</span>
-              <a href={card.twtUrl} target="_blank" rel="noreferrer">
+              <a href={twtHref} target="_blank" rel="noreferrer">
                 twtxt
               </a>
             </>
@@ -1805,6 +1814,7 @@ function FeedRow({
   onAnswer: (item: TimelineItem) => void;
   onEcho: (item: TimelineItem) => void;
 }) {
+  const imageHref = imageUriToGateway(item.imageUri);
   return (
     <article
       id={lineId(item)}
@@ -1820,15 +1830,15 @@ function FeedRow({
         <span className="feed-row__idx">#{item.index.toString()}</span>
       </div>
       <p className="feed-row__text">{item.text}</p>
-      {item.imageUri ? (
+      {imageHref ? (
         <a
           className="feed-row__image"
-          href={imageUriToGateway(item.imageUri)}
+          href={imageHref}
           target="_blank"
           rel="noreferrer"
         >
           <img
-            src={imageUriToGateway(item.imageUri)}
+            src={imageHref}
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
@@ -1977,6 +1987,17 @@ function lineId(item: TimelineItem) {
 
 function lineHref(item: TimelineItem) {
   return `#${lineId(item)}`;
+}
+
+function safeExternalHref(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
 }
 
 async function queryPostEvents(

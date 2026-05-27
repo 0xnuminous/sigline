@@ -127,6 +127,12 @@ contract SiglineTest {
         registry.post("image", "ipfs://cid", bytes32(0));
     }
 
+    function testRejectsImageHashWithoutUri() public {
+        bytes32 imageHash = sha256("image-bytes");
+        vm.expectRevert(Sigline.ImageUriRequired.selector);
+        registry.post("image", "", imageHash);
+    }
+
     function testRejectsTooLongImageUri() public {
         string memory uri =
             "ipfs://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

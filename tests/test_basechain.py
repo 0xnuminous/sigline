@@ -4,10 +4,22 @@ from types import SimpleNamespace
 import pytest
 from web3.exceptions import Web3Exception
 
-from twtxt.basechain import BaseChainError, BaseConfigurationError, account_from_env
-from twtxt.basechain import get_base_tweets, get_line_pointer, get_profile, network_config, publish_tweet
-from twtxt.basechain import normalize_address, resolve_rpc_url, to_base_url
-from twtxt.basechain import _send_transaction
+from twtxt.basechain import (
+    DEFAULT_LOG_CHUNK_SIZE,
+    BaseChainError,
+    BaseConfigurationError,
+    _send_transaction,
+    account_from_env,
+    get_base_tweets,
+    get_line_pointer,
+    get_profile,
+    network_config,
+    normalize_address,
+    publish_tweet,
+    resolve_rpc_url,
+    set_profile,
+    to_base_url,
+)
 from twtxt.models import Source
 
 
@@ -61,6 +73,16 @@ def test_publish_tweet_rejects_posts_over_original_twitter_limit(monkeypatch):
 
     with pytest.raises(BaseConfigurationError, match="141 bytes exceeds the 140 byte limit"):
         publish_tweet("x" * 141, "0x0000000000000000000000000000000000000001")
+
+
+def test_set_profile_rejects_unsafe_twturl(monkeypatch):
+    def fail_transaction_context(*args, **kwargs):
+        raise AssertionError("unsafe profile URLs should fail before RPC setup")
+
+    monkeypatch.setattr("twtxt.basechain._transaction_context", fail_transaction_context)
+
+    with pytest.raises(BaseConfigurationError, match="http:// or https://"):
+        set_profile("alice", "javascript:alert(1)", "0x0000000000000000000000000000000000000001")
 
 
 class FakeEth:
@@ -159,6 +181,10 @@ def test_get_base_tweets_pages_log_reads_from_latest_chunk_first(monkeypatch):
         (6, 15),
         (0, 5),
     ]
+
+
+def test_default_log_chunk_size_matches_base_reliable_range():
+    assert DEFAULT_LOG_CHUNK_SIZE <= 2000
 
 
 def test_get_base_tweets_allows_image_only_posts(monkeypatch):

@@ -11,6 +11,7 @@
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from eth_account import Account
 from web3 import Web3
@@ -27,8 +28,9 @@ LEGACY_RPC_URL_ENV = "TWTXT_BASE_RPC_URL"
 LEGACY_CONTRACT_ENV = "TWTXT_BASE_CONTRACT"
 DEFAULT_NETWORK = "base-sepolia"
 BASE_URL_PREFIX = "base://"
-DEFAULT_LOG_CHUNK_SIZE = 10000
+DEFAULT_LOG_CHUNK_SIZE = 2000
 MAX_POST_BYTES = 140
+PROFILE_URL_SCHEMES = ("http", "https")
 
 
 @dataclass(frozen=True)
@@ -334,6 +336,7 @@ def publish_tweet(text, contract_address, network=DEFAULT_NETWORK, rpc_url=None,
 
 def set_profile(nick, twturl, contract_address, network=DEFAULT_NETWORK, rpc_url=None,
                 private_key_env=PRIVATE_KEY_ENV, timeout=120):
+    twturl = _validate_profile_url(twturl)
     contract, account, cfg, w3 = _transaction_context(
         contract_address=contract_address,
         network=network,
@@ -442,6 +445,17 @@ def _resolve_to_block(w3, to_block):
 
 def _format_tx_hash(tx_hash):
     return Web3.to_hex(tx_hash)
+
+
+def _validate_profile_url(twturl):
+    if not twturl:
+        return twturl
+
+    twturl = twturl.strip()
+    parsed = urlparse(twturl)
+    if parsed.scheme not in PROFILE_URL_SCHEMES or not parsed.netloc:
+        raise BaseConfigurationError("Base profile twturl must be an http:// or https:// URL.")
+    return twturl
 
 
 def _parse_block_number(value, label):

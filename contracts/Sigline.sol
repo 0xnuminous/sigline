@@ -46,6 +46,7 @@ contract Sigline is Ownable2Step, Pausable {
     error PostTooLong(uint256 length, uint256 maxLength);
     error ImageUriTooLong(uint256 length, uint256 maxLength);
     error ImageHashRequired();
+    error ImageUriRequired();
     error EmptyNick();
     error NickTooLong(uint256 length, uint256 maxLength);
     error UrlTooLong(uint256 length, uint256 maxLength);
@@ -72,6 +73,9 @@ contract Sigline is Ownable2Step, Pausable {
         }
         if (imageUriLength > 0 && imageHash == bytes32(0)) {
             revert ImageHashRequired();
+        }
+        if (imageUriLength == 0 && imageHash != bytes32(0)) {
+            revert ImageUriRequired();
         }
 
         index = _postCounts[msg.sender];

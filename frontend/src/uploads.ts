@@ -46,15 +46,27 @@ export async function sha256Hex(file: File) {
 }
 
 export function imageUriToGateway(uri: string, gateway = DEFAULT_IPFS_GATEWAY) {
-  if (!uri) return "";
-  if (uri.startsWith("ipfs://")) {
-    const cid = uri.slice("ipfs://".length);
+  const normalized = uri.trim();
+  if (!normalized) return "";
+  if (normalized.startsWith("ipfs://")) {
+    const cid = normalized.slice("ipfs://".length);
+    if (!cid) return "";
     return gateway.includes("{cid}")
       ? gateway.replace("{cid}", cid)
       : `${gateway.replace(/\/$/, "")}/${cid}`;
   }
-  if (uri.startsWith("ar://")) return `https://arweave.net/${uri.slice(5)}`;
-  if (uri.startsWith("https://")) return uri;
+  if (normalized.startsWith("ar://")) {
+    const id = normalized.slice(5);
+    return id ? `https://arweave.net/${id}` : "";
+  }
+  if (normalized.startsWith("https://")) {
+    try {
+      const url = new URL(normalized);
+      return url.protocol === "https:" && url.host ? url.toString() : "";
+    } catch {
+      return "";
+    }
+  }
   return "";
 }
 
@@ -69,16 +81,24 @@ export async function uploadImage(
     mode === "endpoint"
       ? await uploadViaEndpoint(file, endpoint)
       : await uploadViaLocalIpfs(file, endpoint);
-  if (result.hash && result.hash.toLowerCase() !== hash.toLowerCase()) {
+  const returnedHash = result.hash?.trim();
+  if (returnedHash && returnedHash.toLowerCase() !== hash.toLowerCase()) {
     throw new Error("Upload endpoint returned an image hash mismatch.");
   }
 
-  if (new TextEncoder().encode(result.uri).length > MAX_IMAGE_URI_BYTES) {
+  const imageUri = result.uri.trim();
+  if (new TextEncoder().encode(imageUri).length > MAX_IMAGE_URI_BYTES) {
     throw new Error("Image URI is too long for the contract.");
+  }
+  const gatewayUrl = imageUriToGateway(imageUri);
+  if (!gatewayUrl) {
+    throw new Error("Image URI must use ipfs://, ar://, or https://.");
   }
 
   return {
     ...result,
+    uri: imageUri,
+    gatewayUrl,
     hash,
     bytes: file.size,
     mime: file.type,
