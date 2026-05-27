@@ -413,15 +413,17 @@ def get_base_tweets(sources, contract_address, network=DEFAULT_NETWORK, rpc_url=
 def _base_event_text(args):
     text = args.get("text") or ""
     ref_prefix = _event_ref_prefix(args)
-    if text:
-        return "{0} {1}".format(ref_prefix, text) if ref_prefix else text
-
     image_uri = args.get("imageUri") or ""
-    if image_uri:
-        image_text = "[image] {0}".format(image_uri)
-        return "{0} {1}".format(ref_prefix, image_text) if ref_prefix else image_text
 
-    return ref_prefix or "[empty Base post]"
+    parts = []
+    if ref_prefix:
+        parts.append(ref_prefix)
+    if text:
+        parts.append(text)
+    if image_uri:
+        parts.append("[image] {0}".format(image_uri))
+
+    return " ".join(parts) if parts else "[empty Base post]"
 
 
 def _event_ref_prefix(args):

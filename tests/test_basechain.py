@@ -218,6 +218,37 @@ def test_get_base_tweets_allows_image_only_posts(monkeypatch):
     assert [tweet.text for tweet in tweets] == ["[image] {0}".format(image_uri)]
 
 
+def test_get_base_tweets_renders_text_with_image_posts(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+    image_uri = "ipfs://bafkreic6encph7qzqg3qg6xv4vl23s7lux7dxry4g6e5fli7dgc7alnlti"
+    source = Source("alice", to_base_url(address))
+    tweet_posted = FakePostPosted(
+        {
+            (0, 10): [
+                {
+                    "args": {
+                        "createdAt": 10,
+                        "text": "look at this",
+                        "imageUri": image_uri,
+                    }
+                }
+            ],
+        }
+    )
+    w3 = FakeWeb3(block_number=10)
+    _patch_base_contract(monkeypatch, w3, FakeContract(tweet_posted=tweet_posted))
+
+    tweets = get_base_tweets(
+        [source],
+        contract_address=address,
+        from_block=0,
+        to_block=10,
+        chunk_size=0,
+    )
+
+    assert [tweet.text for tweet in tweets] == ["look at this [image] {0}".format(image_uri)]
+
+
 def test_get_base_tweets_renders_reference_only_echo(monkeypatch):
     address = "0x0000000000000000000000000000000000000001"
     ref_hash = "0x" + ("12" * 32)

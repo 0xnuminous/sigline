@@ -40,9 +40,13 @@ export function validateImageFile(file: File) {
   }
 }
 
-export async function sha256Hex(file: File) {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+async function sha256BlobHex(blob: Blob) {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
   return `0x${[...new Uint8Array(digest)].map((byte) => HEX[byte]).join("")}`;
+}
+
+export async function sha256Hex(file: File) {
+  return sha256BlobHex(file);
 }
 
 export function imageUriToGateway(uri: string, gateway = DEFAULT_IPFS_GATEWAY) {
@@ -85,6 +89,9 @@ export async function uploadImage(
   if (returnedHash && returnedHash.toLowerCase() !== hash.toLowerCase()) {
     throw new Error("Upload endpoint returned an image hash mismatch.");
   }
+  if (mode === "local-ipfs" && result.cid) {
+    await verifyLocalIpfsContent(endpoint, result.cid, hash);
+  }
 
   const imageUri = result.uri.trim();
   if (new TextEncoder().encode(imageUri).length > MAX_IMAGE_URI_BYTES) {
@@ -103,6 +110,25 @@ export async function uploadImage(
     bytes: file.size,
     mime: file.type,
   };
+}
+
+async function verifyLocalIpfsContent(
+  endpoint: string,
+  cid: string,
+  expectedHash: string,
+) {
+  const response = await fetch(
+    `${endpoint.replace(/\/$/, "")}/api/v0/cat?arg=${encodeURIComponent(cid)}`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw new Error(`IPFS verification failed (${response.status}).`);
+  }
+
+  const actualHash = await sha256BlobHex(await response.blob());
+  if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
+    throw new Error("IPFS returned image hash mismatch.");
+  }
 }
 
 async function uploadViaLocalIpfs(
