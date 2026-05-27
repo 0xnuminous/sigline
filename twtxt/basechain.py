@@ -31,6 +31,10 @@ BASE_URL_PREFIX = "base://"
 DEFAULT_LOG_CHUNK_SIZE = 2000
 MAX_POST_BYTES = 140
 PROFILE_URL_SCHEMES = ("http", "https")
+ZERO_HASH = "0x" + ("0" * 64)
+REF_KIND_NONE = 0
+REF_KIND_REPLY = 1
+REF_KIND_ECHO = 2
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,79 @@ SIGLINE_ABI = [
     },
     {
         "type": "function",
+        "name": "IMAGE_PASS_FEE",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "type": "function",
+        "name": "POST_TYPEHASH",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "bytes32"}],
+    },
+    {
+        "type": "function",
+        "name": "eip712Domain",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [
+            {"name": "fields", "type": "bytes1"},
+            {"name": "name", "type": "string"},
+            {"name": "version", "type": "string"},
+            {"name": "chainId", "type": "uint256"},
+            {"name": "verifyingContract", "type": "address"},
+            {"name": "salt", "type": "bytes32"},
+            {"name": "extensions", "type": "uint256[]"},
+        ],
+    },
+    {
+        "type": "function",
+        "name": "buyImagePass",
+        "stateMutability": "payable",
+        "inputs": [],
+        "outputs": [],
+    },
+    {
+        "type": "function",
+        "name": "sweepFees",
+        "stateMutability": "nonpayable",
+        "inputs": [],
+        "outputs": [],
+    },
+    {
+        "type": "function",
+        "name": "treasury",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address"}],
+    },
+    {
+        "type": "function",
+        "name": "imagePasses",
+        "stateMutability": "view",
+        "inputs": [{"name": "account", "type": "address"}],
+        "outputs": [{"name": "", "type": "bool"}],
+    },
+    {
+        "type": "function",
+        "name": "postWithReference",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "text", "type": "string"},
+            {"name": "imageUri", "type": "string"},
+            {"name": "imageHash", "type": "bytes32"},
+            {"name": "refHash", "type": "bytes32"},
+            {"name": "refKind", "type": "uint8"},
+        ],
+        "outputs": [
+            {"name": "index", "type": "uint256"},
+            {"name": "contentHash", "type": "bytes32"},
+        ],
+    },
+    {
+        "type": "function",
         "name": "profile",
         "stateMutability": "view",
         "inputs": [{"name": "account", "type": "address"}],
@@ -132,6 +209,8 @@ SIGLINE_ABI = [
                     {"name": "contentHash", "type": "bytes32"},
                     {"name": "createdAt", "type": "uint64"},
                     {"name": "imageHash", "type": "bytes32"},
+                    {"name": "refHash", "type": "bytes32"},
+                    {"name": "refKind", "type": "uint8"},
                 ],
             }
         ],
@@ -150,11 +229,31 @@ SIGLINE_ABI = [
         "inputs": [
             {"indexed": True, "name": "author", "type": "address"},
             {"indexed": True, "name": "index", "type": "uint256"},
-            {"indexed": True, "name": "createdAt", "type": "uint64"},
+            {"indexed": True, "name": "refHash", "type": "bytes32"},
+            {"indexed": False, "name": "createdAt", "type": "uint64"},
             {"indexed": False, "name": "contentHash", "type": "bytes32"},
             {"indexed": False, "name": "text", "type": "string"},
             {"indexed": False, "name": "imageUri", "type": "string"},
             {"indexed": False, "name": "imageHash", "type": "bytes32"},
+            {"indexed": False, "name": "refKind", "type": "uint8"},
+        ],
+    },
+    {
+        "type": "event",
+        "name": "ImagePassPurchased",
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "name": "account", "type": "address"},
+            {"indexed": False, "name": "amount", "type": "uint256"},
+        ],
+    },
+    {
+        "type": "event",
+        "name": "TreasurySwept",
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "name": "treasury", "type": "address"},
+            {"indexed": False, "name": "amount", "type": "uint256"},
         ],
     },
 ]
@@ -275,7 +374,13 @@ def get_line_pointer(account, index, contract_address, network=DEFAULT_NETWORK, 
         line = contract.functions.line(normalize_address(account), line_index).call()
     except (Web3Exception, ValueError) as e:
         raise BaseChainError("Failed to fetch Base line pointer: {0}".format(e)) from e
-    return {"content_hash": Web3.to_hex(line[0]), "created_at": line[1], "image_hash": Web3.to_hex(line[2])}
+    return {
+        "content_hash": Web3.to_hex(line[0]),
+        "created_at": line[1],
+        "image_hash": Web3.to_hex(line[2]),
+        "ref_hash": Web3.to_hex(line[3]),
+        "ref_kind": line[4],
+    }
 
 
 def get_base_tweets(sources, contract_address, network=DEFAULT_NETWORK, rpc_url=None,
@@ -307,14 +412,35 @@ def get_base_tweets(sources, contract_address, network=DEFAULT_NETWORK, rpc_url=
 
 def _base_event_text(args):
     text = args.get("text") or ""
+    ref_prefix = _event_ref_prefix(args)
     if text:
-        return text
+        return "{0} {1}".format(ref_prefix, text) if ref_prefix else text
 
     image_uri = args.get("imageUri") or ""
     if image_uri:
-        return "[image] {0}".format(image_uri)
+        image_text = "[image] {0}".format(image_uri)
+        return "{0} {1}".format(ref_prefix, image_text) if ref_prefix else image_text
 
-    return "[empty Base post]"
+    return ref_prefix or "[empty Base post]"
+
+
+def _event_ref_prefix(args):
+    ref_hash = _event_ref_hash(args)
+    ref_kind = args.get("refKind") or REF_KIND_NONE
+    if ref_kind == REF_KIND_REPLY and ref_hash != ZERO_HASH:
+        return "[reply] {0}".format(_short_hash(ref_hash))
+    if ref_kind == REF_KIND_ECHO and ref_hash != ZERO_HASH:
+        return "[echo] {0}".format(_short_hash(ref_hash))
+    return ""
+
+
+def _event_ref_hash(args):
+    value = args.get("refHash") or ZERO_HASH
+    return Web3.to_hex(value) if isinstance(value, (bytes, bytearray)) else str(value)
+
+
+def _short_hash(value):
+    return "{0}…{1}".format(value[:8], value[-4:]) if len(value) > 12 else value
 
 
 def publish_tweet(text, contract_address, network=DEFAULT_NETWORK, rpc_url=None,

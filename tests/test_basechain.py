@@ -218,6 +218,72 @@ def test_get_base_tweets_allows_image_only_posts(monkeypatch):
     assert [tweet.text for tweet in tweets] == ["[image] {0}".format(image_uri)]
 
 
+def test_get_base_tweets_renders_reference_only_echo(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+    ref_hash = "0x" + ("12" * 32)
+    source = Source("alice", to_base_url(address))
+    tweet_posted = FakePostPosted(
+        {
+            (0, 10): [
+                {
+                    "args": {
+                        "createdAt": 10,
+                        "text": "",
+                        "imageUri": "",
+                        "refHash": ref_hash,
+                        "refKind": 2,
+                    }
+                }
+            ],
+        }
+    )
+    w3 = FakeWeb3(block_number=10)
+    _patch_base_contract(monkeypatch, w3, FakeContract(tweet_posted=tweet_posted))
+
+    tweets = get_base_tweets(
+        [source],
+        contract_address=address,
+        from_block=0,
+        to_block=10,
+        chunk_size=0,
+    )
+
+    assert [tweet.text for tweet in tweets] == ["[echo] 0x121212…1212"]
+
+
+def test_get_base_tweets_renders_reference_context_with_text(monkeypatch):
+    address = "0x0000000000000000000000000000000000000001"
+    ref_hash = "0x" + ("34" * 32)
+    source = Source("alice", to_base_url(address))
+    tweet_posted = FakePostPosted(
+        {
+            (0, 10): [
+                {
+                    "args": {
+                        "createdAt": 10,
+                        "text": "agreed",
+                        "imageUri": "",
+                        "refHash": ref_hash,
+                        "refKind": 1,
+                    }
+                }
+            ],
+        }
+    )
+    w3 = FakeWeb3(block_number=10)
+    _patch_base_contract(monkeypatch, w3, FakeContract(tweet_posted=tweet_posted))
+
+    tweets = get_base_tweets(
+        [source],
+        contract_address=address,
+        from_block=0,
+        to_block=10,
+        chunk_size=0,
+    )
+
+    assert [tweet.text for tweet in tweets] == ["[reply] 0x343434…3434 agreed"]
+
+
 def test_get_base_tweets_wraps_rpc_errors(monkeypatch):
     address = "0x0000000000000000000000000000000000000001"
     source = Source("alice", to_base_url(address))
@@ -262,7 +328,7 @@ def test_get_profile_wraps_web3_errors(monkeypatch):
 
 class FakeLineCall:
     def __init__(self, value=None, error=None):
-        self.value = value or (b"\x12" * 32, 123, b"\x34" * 32)
+        self.value = value or (b"\x12" * 32, 123, b"\x34" * 32, b"\x56" * 32, 2)
         self.error = error
 
     def call(self):
@@ -293,6 +359,8 @@ def test_get_line_pointer_returns_prefixed_hashes(monkeypatch):
         "content_hash": "0x" + ("12" * 32),
         "created_at": 123,
         "image_hash": "0x" + ("34" * 32),
+        "ref_hash": "0x" + ("56" * 32),
+        "ref_kind": 2,
     }
 
 

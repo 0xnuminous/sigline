@@ -14,17 +14,27 @@ Security model
 The contract is deliberately small:
 
 - Full post payloads are append-only events. The contract also stores a small
-  line pointer for each signer/index: content hash, timestamp, and image hash.
+  line pointer for each signer/index: content hash, timestamp, image hash, and
+  optional reply/echo reference hash.
   This lets clients verify a line by address and index without storing full text
   in contract storage.
+- Line content hashes use EIP-712 typed-data domain separation scoped to the
+  ``Sigline`` contract, chain id, and contract address. The contract also exposes
+  ``eip712Domain()`` for clients that want to inspect the active hash domain.
 - Accounts can only post for themselves and update their own profile.
 - Posts are capped at 140 bytes on-chain, matching original Twitter-length
   posts for ASCII text. Nick and URL byte lengths are also bounded.
 - Images are not stored on-chain. Posts may include an optional image URI and
   SHA-256 hash so clients can retrieve the image from IPFS, Arweave, or another
-  content-addressed store and verify the bytes.
-- The contract rejects native-token transfers and does not implement token
-  rescue or withdrawal flows.
+  content-addressed store and verify the bytes. Image posts require a one-time
+  ``0.01 ETH`` image pass for the posting address.
+- Replies and echoes are stored as compact references to another line hash, so
+  conversation and repost metadata is explicit instead of relying only on text
+  prefixes. Clients should still treat a reference as an untrusted pointer until
+  they fetch and verify the referenced line.
+- The contract rejects accidental native-token transfers. The only payable path
+  is ``buyImagePass()``, and anyone can call ``sweepFees()`` to send accumulated
+  pass fees to the immutable deploy-time treasury.
 - The owner can pause and unpause writes, and ownership transfer is two-step.
 - Ownership renounce is disabled so the contract cannot be left permanently
   paused without an owner.
@@ -69,6 +79,14 @@ Deploy with Foundry. Use Base Sepolia first:
         --private-key "$BASE_DEPLOYER_PRIVATE_KEY" \
         contracts/Sigline.sol:Sigline \
         --constructor-args "$OWNER_ADDRESS"
+
+The constructor stores ``OWNER_ADDRESS`` as both the initial owner and immutable
+fee treasury. If you want to use ENS, resolve it before deployment and pass the
+resolved address:
+
+.. code-block:: console
+
+    $ export OWNER_ADDRESS=$(cast resolve-name neonapple.eth --rpc-url https://ethereum-rpc.publicnode.com)
 
 After deployment, set ``[base] contract`` and ``[base] from_block`` to the
 deployment address and deployment block.
@@ -132,6 +150,11 @@ Image uploads
 The frontend can attach one optional image to a post. Sigline does not host
 image bytes. The app stores only the image URI and SHA-256 hash on-chain; the
 actual image must live on storage the user controls or explicitly chooses.
+
+Image posts require the posting wallet to buy one image pass with
+``buyImagePass()``. The pass costs ``0.01 ETH`` on the selected Base network.
+Those fees remain in the contract until anyone calls ``sweepFees()``, which can
+only send the full balance to the immutable treasury address set at deployment.
 
 The browser never embeds provider API secrets.
 

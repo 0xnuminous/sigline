@@ -23,10 +23,12 @@ Features
 - Base-chain publishing and timeline reads via append-only smart contract events.
 - On-chain line pointers by signer/index for hash verification without replaying
   all logs.
+- EIP-712 domain-separated line hashes with EIP-5267 domain introspection.
+- Reply and echo references stored as compact line-hash metadata.
 - Wallet-based Vite/React frontend for posting, profile publishing, and feed reads.
 - Optional image attachments via local IPFS or a bring-your-own IPFS/Arweave
   upload endpoint. Sigline stores only the image URI and hash; it does not host
-  image bytes.
+  image bytes. Image posting requires a one-time on-chain image pass.
 - Legacy twtxt flat-file workflows are still available through the Python CLI.
 - Don’t like the official client? Tweet using ``echo -e "`date +%FT%T%:z`\tHello world!" >> twtxt.txt``!
 

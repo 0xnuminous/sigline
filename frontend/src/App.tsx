@@ -24,19 +24,25 @@ import {
   Contract,
   EventLog,
   JsonRpcProvider,
+  formatEther,
   getAddress,
 } from "ethers";
 import type { ContractEventName, Log } from "ethers";
 import {
   ABI,
   ContractMap,
+  IMAGE_PASS_FEE_WEI,
   MAX_POST_BYTES,
   NetworkKey,
   NETWORKS,
+  REF_KIND_ECHO,
+  REF_KIND_NONE,
+  REF_KIND_REPLY,
   STORAGE_KEY,
   Sigcard,
   StatusTone,
   TimelineItem,
+  ZERO_HASH,
   assertContractDeployed,
   ensureWalletOnNetwork,
   formatRelative,
@@ -44,6 +50,7 @@ import {
   getDisplayErrorMessage,
   isAddressLike,
   parseBlock,
+  readImagePass,
   readSigcard,
   readSavedSettings,
   samplePosts,
@@ -149,7 +156,11 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isBuyingImagePass, setIsBuyingImagePass] = useState(false);
   const [isSealingId, setIsSealingId] = useState(false);
+  const [hasImagePass, setHasImagePass] = useState(false);
+  const [imagePassLoading, setImagePassLoading] = useState(false);
+  const [imagePassRefresh, setImagePassRefresh] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [imageUpload, setImageUpload] = useState<ImageUploadResult | null>(null);
@@ -353,7 +364,7 @@ export default function App() {
     });
   }, [knownSignerAddresses, localSignerStats, sigcards]);
   // The wallet is actively signing/waiting on a tx (not just scanning).
-  const walletBusy = isPosting || isSealingId;
+  const walletBusy = isPosting || isSealingId || isBuyingImagePass;
 
   useEffect(() => {
     let cancelled = false;
@@ -410,6 +421,43 @@ export default function App() {
     sigcardRefresh,
   ]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadImagePass = async () => {
+      if (!contractReady || !account) {
+        setHasImagePass(false);
+        setImagePassLoading(false);
+        return;
+      }
+      setImagePassLoading(true);
+      try {
+        const provider = new JsonRpcProvider(
+          rpcUrl || network.rpcUrl,
+          Number(network.chainId),
+        );
+        await assertContractDeployed(provider, contractAddress);
+        const enabled = await readImagePass(provider, contractAddress, account);
+        if (!cancelled) setHasImagePass(enabled);
+      } catch {
+        if (!cancelled) setHasImagePass(false);
+      } finally {
+        if (!cancelled) setImagePassLoading(false);
+      }
+    };
+    void loadImagePass();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    account,
+    contractAddress,
+    contractReady,
+    imagePassRefresh,
+    network.chainId,
+    network.rpcUrl,
+    rpcUrl,
+  ]);
+
   /* --------------------------------- actions -------------------------------- */
 
   const connectWallet = useCallback(async () => {
@@ -453,6 +501,46 @@ export default function App() {
       appendLog("bad", msg, "net");
     }
   }, [appendLog, network]);
+
+  const buyImagePass = useCallback(async () => {
+    if (!contractReady) {
+      setStatus({
+        tone: "warn",
+        text: "Set a contract address before buying an image pass.",
+      });
+      return;
+    }
+    try {
+      setIsBuyingImagePass(true);
+      appendLog("idle", "Preparing image pass purchase.", "image");
+      await ensureWalletOnNetwork(network);
+      const contract = await writableContract(contractAddress, network);
+      const fee = await contract.IMAGE_PASS_FEE().catch(() => IMAGE_PASS_FEE_WEI);
+      const tx = await contract.buyImagePass({ value: fee });
+      setStatus({
+        tone: "idle",
+        text: `Submitted image pass for ${formatEther(fee)} ${network.currency}.`,
+      });
+      appendLog("idle", `Submitted tx ${shorten(tx.hash)}`, "image");
+      const receipt = await tx.wait();
+      setLastTx(receipt.hash);
+      setHasImagePass(true);
+      setImagePassRefresh((n) => n + 1);
+      setBalanceRefresh((n) => n + 1);
+      setStatus({ tone: "good", text: "Image pass active." });
+      appendLog(
+        "good",
+        `Image pass active in block ${receipt.blockNumber} (${shorten(receipt.hash)}).`,
+        "image",
+      );
+    } catch (error) {
+      const msg = getDisplayErrorMessage(error);
+      setStatus({ tone: "bad", text: msg });
+      appendLog("bad", msg, "image");
+    } finally {
+      setIsBuyingImagePass(false);
+    }
+  }, [appendLog, contractAddress, contractReady, network]);
 
   const trackSigner = useCallback(
     (value: string) => {
@@ -714,6 +802,15 @@ export default function App() {
       });
       return;
     }
+    if ((imageFile || imageUpload) && !hasImagePass) {
+      setStatus({
+        tone: "warn",
+        text: imagePassLoading
+          ? "Checking image pass. Try again in a moment."
+          : "Buy an image pass before posting images.",
+      });
+      return;
+    }
     try {
       setIsPosting(true);
       const uploaded = imageUpload || (imageFile ? await uploadSelectedImage() : null);
@@ -721,12 +818,20 @@ export default function App() {
       appendLog("idle", "Preparing post…", "post");
       await ensureWalletOnNetwork(network);
       const contract = await writableContract(contractAddress, network);
-      const tx = await contract.post(
-        postText.trim(),
-        uploaded?.uri ?? "",
-        uploaded?.hash ??
-          "0x0000000000000000000000000000000000000000000000000000000000000000",
-      );
+      const refLine = answeringTo ?? echoingTo;
+      const refKind = answeringTo
+        ? REF_KIND_REPLY
+        : echoingTo
+          ? REF_KIND_ECHO
+          : REF_KIND_NONE;
+      const refHash = refLine?.contentHash ?? ZERO_HASH;
+      const text = postText.trim();
+      const imageUri = uploaded?.uri ?? "";
+      const imageHash = uploaded?.hash ?? ZERO_HASH;
+      const tx =
+        refKind === REF_KIND_NONE
+          ? await contract.post(text, imageUri, imageHash)
+          : await contract.postWithReference(text, imageUri, imageHash, refHash, refKind);
       setStatus({
         tone: "idle",
         text: "Submitted. Waiting for confirmation…",
@@ -756,10 +861,14 @@ export default function App() {
     }
   }, [
     appendLog,
+    answeringTo,
     clearImage,
     contractAddress,
     contractReady,
+    echoingTo,
+    hasImagePass,
     imageFile,
+    imagePassLoading,
     imageUpload,
     loadTimeline,
     network,
@@ -1390,6 +1499,27 @@ export default function App() {
                     }
                   />
                 </div>
+                <div className="image-upload__pass">
+                  <span>
+                    image pass ·{" "}
+                    {hasImagePass
+                      ? "active"
+                      : imagePassLoading
+                        ? "checking"
+                        : `${formatEther(IMAGE_PASS_FEE_WEI)} ${network.currency}`}
+                  </span>
+                  {!hasImagePass ? (
+                    <Button
+                      variant="ghost"
+                      icon={<BadgeCheck size={14} />}
+                      onClick={buyImagePass}
+                      loading={isBuyingImagePass}
+                      disabled={!contractReady || !chainAligned}
+                    >
+                      buy pass
+                    </Button>
+                  ) : null}
+                </div>
                 {imagePreviewUrl ? (
                   <div className="image-upload__preview">
                     <img src={imagePreviewUrl} alt="" />
@@ -1637,9 +1767,9 @@ export default function App() {
           >
             <div className="trust__grid">
               <TrustRow
-                tag="NO FUNDS"
-                title="The contract holds no funds"
-                body="There is no balance, no pool, and no withdraw function. Nothing to drain."
+                tag="PASS FEES"
+                title="Image fees sweep to one immutable treasury"
+                body="Only image-pass purchases are payable. Anyone can trigger a sweep, but funds always go to the deploy-time treasury."
               />
               <TrustRow
                 tag="LIMITED ADMIN"
@@ -1913,6 +2043,19 @@ function FeedRow({
             <span className="feed-row__crc">{shortHash(item.imageHash)}</span>
           </>
         ) : null}
+        {item.refKind !== REF_KIND_NONE && item.refHash !== ZERO_HASH ? (
+          <>
+            <span className="feed-row__sep" aria-hidden="true">
+              ░
+            </span>
+            <span className="feed-row__label">
+              {item.refKind === REF_KIND_ECHO ? "echo" : "reply"}
+            </span>
+            <a className="feed-row__link" href={lineHashHref(item.refHash)}>
+              {shortHash(item.refHash)}
+            </a>
+          </>
+        ) : null}
       </div>
     </article>
   );
@@ -1986,7 +2129,11 @@ function lineId(item: TimelineItem) {
 }
 
 function lineHref(item: TimelineItem) {
-  return `#${lineId(item)}`;
+  return lineHashHref(item.contentHash);
+}
+
+function lineHashHref(contentHash: string) {
+  return `#line-${contentHash.slice(2)}`;
 }
 
 function safeExternalHref(value: string) {

@@ -31,6 +31,8 @@ export type TimelineItem = {
   text: string;
   imageUri: string;
   imageHash: string;
+  refHash: string;
+  refKind: number;
   txHash: string;
   blockNumber: number;
 };
@@ -39,6 +41,8 @@ export type LinePointer = {
   contentHash: string;
   createdAt: number;
   imageHash: string;
+  refHash: string;
+  refKind: number;
 };
 
 export type Sigcard = {
@@ -56,6 +60,10 @@ export const MAX_POST_BYTES = 140;
 export const MAX_IMAGE_BYTES = 1_000_000;
 export const MAX_IMAGE_URI_BYTES = 256;
 export const ZERO_HASH = `0x${"0".repeat(64)}`;
+export const IMAGE_PASS_FEE_WEI = 10_000_000_000_000_000n;
+export const REF_KIND_NONE = 0;
+export const REF_KIND_REPLY = 1;
+export const REF_KIND_ECHO = 2;
 
 export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
   "base-sepolia": {
@@ -81,12 +89,22 @@ export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
 };
 
 export const ABI = [
+  "function IMAGE_PASS_FEE() view returns (uint256)",
+  "function POST_TYPEHASH() view returns (bytes32)",
+  "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
   "function post(string text, string imageUri, bytes32 imageHash) returns (uint256 index, bytes32 contentHash)",
+  "function postWithReference(string text, string imageUri, bytes32 imageHash, bytes32 refHash, uint8 refKind) returns (uint256 index, bytes32 contentHash)",
+  "function buyImagePass() payable",
+  "function sweepFees()",
+  "function treasury() view returns (address)",
+  "function imagePasses(address account) view returns (bool)",
   "function setProfile(string nick, string twtUrl)",
-  "function line(address account, uint256 index) view returns (tuple(bytes32 contentHash, uint64 createdAt, bytes32 imageHash))",
+  "function line(address account, uint256 index) view returns (tuple(bytes32 contentHash, uint64 createdAt, bytes32 imageHash, bytes32 refHash, uint8 refKind))",
   "function profile(address account) view returns (tuple(string nick, string twtUrl, uint64 updatedAt))",
   "function postCount(address account) view returns (uint256)",
-  "event PostPosted(address indexed author, uint256 indexed index, uint64 indexed createdAt, bytes32 contentHash, string text, string imageUri, bytes32 imageHash)",
+  "event PostPosted(address indexed author, uint256 indexed index, bytes32 indexed refHash, uint64 createdAt, bytes32 contentHash, string text, string imageUri, bytes32 imageHash, uint8 refKind)",
+  "event ImagePassPurchased(address indexed account, uint256 amount)",
+  "event TreasurySwept(address indexed treasury, uint256 amount)",
   "event ProfileUpdated(address indexed account, string nick, string twtUrl, uint64 updatedAt)",
 ];
 
@@ -113,6 +131,8 @@ export const samplePosts: TimelineItem[] = [
     text: "Posting from a wallet, reading from the contract.",
     imageUri: "",
     imageHash: ZERO_HASH,
+    refHash: ZERO_HASH,
+    refKind: REF_KIND_NONE,
     txHash:
       "0x8b1db7fdcbfc7f18d46db47f36c8cfcf5d50e78f1a2ce3995c28198f54a01001",
     blockNumber: 1842041,
@@ -127,6 +147,9 @@ export const samplePosts: TimelineItem[] = [
     text: "Small feed. Public history. No account required.",
     imageUri: "",
     imageHash: ZERO_HASH,
+    refHash:
+      "0x58c7f3f1e5cf51e2a3bb5f219b8fd32b3e91e50c092116b12dd58f7d3a410001",
+    refKind: REF_KIND_REPLY,
     txHash:
       "0x9f1db7fdcbfc7f18d46db47f36c8cfcf5d50e78f1a2ce3995c28198f54a01002",
     blockNumber: 1841130,
@@ -222,6 +245,8 @@ export function toTimelineItem(event: EventLog): TimelineItem {
     text: String(args.text),
     imageUri: String(args.imageUri ?? ""),
     imageHash: String(args.imageHash ?? ZERO_HASH),
+    refHash: String(args.refHash ?? ZERO_HASH),
+    refKind: Number(args.refKind ?? REF_KIND_NONE),
     txHash: event.transactionHash,
     blockNumber: event.blockNumber,
   };
@@ -246,6 +271,15 @@ export async function readSigcard(
   };
 }
 
+export async function readImagePass(
+  provider: JsonRpcProvider,
+  contractAddress: string,
+  address: string,
+): Promise<boolean> {
+  const contract = new Contract(contractAddress, ABI, provider);
+  return Boolean(await contract.imagePasses(address));
+}
+
 export async function readLinePointer(
   provider: JsonRpcProvider,
   contractAddress: string,
@@ -258,6 +292,8 @@ export async function readLinePointer(
     contentHash: String(line.contentHash ?? line[0] ?? ZERO_HASH),
     createdAt: Number(line.createdAt ?? line[1] ?? 0),
     imageHash: String(line.imageHash ?? line[2] ?? ZERO_HASH),
+    refHash: String(line.refHash ?? line[3] ?? ZERO_HASH),
+    refKind: Number(line.refKind ?? line[4] ?? REF_KIND_NONE),
   };
 }
 

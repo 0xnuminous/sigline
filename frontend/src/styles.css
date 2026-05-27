@@ -1608,6 +1608,20 @@ body::after {
     gap: var(--s-3);
 }
 
+.image-upload__pass {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    padding: var(--s-2) var(--s-3);
+    border: 1px solid var(--line);
+    background: rgba(11, 19, 34, 0.45);
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
 .image-upload__preview {
     display: grid;
     grid-template-columns: 96px minmax(0, 1fr);
@@ -2023,6 +2037,10 @@ body::after {
     .image-upload__route,
     .image-upload__preview {
         grid-template-columns: 1fr;
+    }
+    .image-upload__pass {
+        align-items: stretch;
+        flex-direction: column;
     }
     .row--2 {
         grid-template-columns: 1fr;
