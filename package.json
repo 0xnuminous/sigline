@@ -6,11 +6,12 @@
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:frontend": "vitest run",
     "test:python": "uv run pytest",
     "lint:python": "uv run ruff check .",
     "test:contracts": "forge test",
     "fmt:contracts:check": "forge fmt --check",
-    "check": "npm run lint:python && npm run test:python && npm run lint && npm run typecheck && npm run build && npm run fmt:contracts:check && npm run test:contracts"
+    "check": "npm run lint:python && npm run test:python && npm run lint && npm run typecheck && npm run test:frontend && npm run build && npm run fmt:contracts:check && npm run test:contracts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -22,15 +23,17 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.0",
-    "vite": "^8.0.14"
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
   },
   "dependencies": {
     "ethers": "^6.16.0",
     "lucide-react": "^1.16.0",
+    "multiformats": "^14.0.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
   "overrides": {
-    "ws": "8.20.1"
+    "ws": "8.21.0"
   }
 }
